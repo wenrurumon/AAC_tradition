@@ -13,7 +13,7 @@ s <- function(b){
   list(cv=cv,coef=c(b=b,lift=lift,range=range))
 }
 curvemap <- as.data.frame(
-  t(sapply((500:2500)/1000,function(i){
+  t(sapply((500:5000)/1000,function(i){
     s(i)$coef
   }))
 )
@@ -25,8 +25,9 @@ rawcurve <- function(blift,brange){
   list(fomula=f,sel=sel)
 }
 getcurve <- function(f,C,Cs,ret){
-  # f <- rawcurve(3.4/3.1,98/59)
-  # C <- 98; Cs <- 0.34; ret <- 0.75
+  # f <- rawcurve(1.1/0.7,5)
+  # C <- 30; Cs <- 1.1; ret <- 0.75
+  
   qx <- (1:3000)/1000
   b <- f$sel$b
   cv <- (f$fomula(qx))
@@ -56,7 +57,14 @@ scurve <- function(orange,rrange,ret){
   getcurve(f,o2,r2,ret)
 }
 
-f <- scurve(c(59,98),c(0.31,0.34),0.75)
-cbind(f$coef)
-plot.ts(diff(f$fun(1:500)),col=2); lines(f$fun(1:500)/(1:500))
+####################################
 
+# range <- c(20,60)
+# roi <- c(0.7,1.1)
+
+x <- (1:3000)/1000
+cv <- (1-exp(-1*(x+0.2)^20.48))
+mar <- diff(cv); roi <- cv/(1:length(cv))
+lift <- roi[which(roi==max(roi))]/roi[which(mar==max(mar))]
+range <- which(roi==max(roi))/which(mar==max(mar))
+lift;range
