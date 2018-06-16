@@ -45,7 +45,7 @@ getcurve <- function(f,C,Cs,ret){
   margin <- diff(f(1:500))
   roi <- f(1:500)/(1:500)
   plot.ts(margin,col=2); lines(roi)
-  prf <- prf * (1-ret)
+  prf <- prf * (1-ret)˛
   fomula <- parse(text=paste0(prf,"*(1-exp(-1*(x*",prf2,")^",b,'))'))
   list(coef=c(prf=prf,prf2=prf2,b=b,ret=ret),fomula=fomula,fun=f)
 }
