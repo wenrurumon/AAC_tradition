@@ -25,8 +25,8 @@ rawcurve <- function(blift,brange){
   list(fomula=f,sel=sel)
 }
 getcurve <- function(f,C,Cs,ret){
-  # f <- rawcurve(1.1/0.7,5)
-  # C <- 30; Cs <- 1.1; ret <- 0.75
+  # f <- rawcurve(34/31,98/59)
+  # C <- 98; Cs <- 0.34; ret <- 0.75
   
   qx <- (1:3000)/1000
   b <- f$sel$b
@@ -38,13 +38,14 @@ getcurve <- function(f,C,Cs,ret){
   prf2 <- qx[which(roi==max(roi))]/(C/(1-ret))
   f <- function(x){(1-exp(-1*(x*prf2)^b))}
   cv <- f(1:1000)
-  roi <- cv/((1:1000)*(1-ret)) #x = (1:1000)*(1-ret)
+  roi <- cv/((1:1000)) #x = (1:1000)*(1-ret)
   
   prf <- Cs/roi[which(roi==max(roi))]
   f <- function(x){prf * (1-exp(-1*(x*prf2)^b))}
   margin <- diff(f(1:500))
   roi <- f(1:500)/(1:500)
   plot.ts(margin,col=2); lines(roi)
+  prf <- prf * (1-ret)
   fomula <- parse(text=paste0(prf,"*(1-exp(-1*(x*",prf2,")^",b,'))'))
   list(coef=c(prf=prf,prf2=prf2,b=b,ret=ret),fomula=fomula,fun=f)
 }
@@ -56,15 +57,10 @@ scurve <- function(orange,rrange,ret){
   f <- rawcurve(r2/r1,o2/o1)
   getcurve(f,o2,r2,ret)
 }
+f <- scurve(c(2,4),c(1.3,1.5),0.75)
 
-####################################
 
-# range <- c(20,60)
-# roi <- c(0.7,1.1)
 
-x <- (1:3000)/1000
-cv <- (1-exp(-1*(x+0.2)^20.48))
-mar <- diff(cv); roi <- cv/(1:length(cv))
-lift <- roi[which(roi==max(roi))]/roi[which(mar==max(mar))]
-range <- which(roi==max(roi))/which(mar==max(mar))
-lift;range
+f$fun(8)/2
+f$fun(16)/4
+f
