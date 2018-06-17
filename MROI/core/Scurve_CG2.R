@@ -58,8 +58,14 @@ scurve <- function(orange,rrange,ret){
   getcurve(f,o2,r2,ret)
 }
 
+#Voltaren TV
 scurve(c(59,98),c(0.31,0.34),0.75)
+#Voltaren OTV
+f <- scurve(c(1,8),c(0.68,1.1),0.75)
+#Voltaren Search
+f <- scurve(c(25,40),c(0.22,0.25),0.75)
 
-
-
-
+#Voltaren Wechat
+f <- scurve(c())
+which(f$fun(1:1000)/(1:1000)==max(f$fun(1:1000)/(1:1000)))
+which(diff(f$fun(1:1000))==max(diff(f$fun(1:1000))))
