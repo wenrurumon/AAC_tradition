@@ -45,7 +45,7 @@ getcurve <- function(f,C,Cs,ret){
   margin <- diff(f(1:500))
   roi <- f(1:500)/(1:500)
   plot.ts(margin,col=2); lines(roi)
-  prf <- prf * (1-ret)˛
+  prf <- prf * (1-ret)
   fomula <- parse(text=paste0(prf,"*(1-exp(-1*(x*",prf2,")^",b,'))'))
   list(coef=c(prf=prf,prf2=prf2,b=b,ret=ret),fomula=fomula,fun=f)
 }
@@ -57,10 +57,9 @@ scurve <- function(orange,rrange,ret){
   f <- rawcurve(r2/r1,o2/o1)
   getcurve(f,o2,r2,ret)
 }
-f <- scurve(c(2,4),c(1.3,1.5),0.75)
+
+scurve(c(59,98),c(0.31,0.34),0.75)
 
 
 
-f$fun(8)/2
-f$fun(16)/4
-f
+
