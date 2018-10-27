@@ -1,3 +1,4 @@
+
 rm(list=ls())
 setwd('E:\\gsk\\fbd_flx\\model')
 # setwd('/Users/wenrurumon/Desktop/Fenbid_Filxonase/model')
