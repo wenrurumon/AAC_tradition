@@ -23,11 +23,12 @@ qarima <- function(x,freq=12,h=18,fforce=function(x){x*(x>0)},ifplot=F){
     fitted = c(x,x.f)
   )
 }
-ret <- function(x,r=0.3){
+ret <- function(x,r=0.3,l=0){
   out <- x
   for(i in 2:length(x)){
     out[i] <- out[i-1]*r+x[i]
   }
+  out <- c(rep(0,l),out)[1:length(out)]
   out * sum(x)/sum(out)
 }
 minmax <- function(x,mi=NULL,ma=NULL){
@@ -71,7 +72,7 @@ x <- data.frame(y=y
                 ,x.base
                 ,tmedia=ret(rowSums(x.tmedia),0.35)
                 ,dmedia=ret(rowSums(x.dmedia),0.25)
-                ,tmk=ret(rowSums(x.tmk),0.1)
+                ,tmk=ret(rowSums(x.tmk),0.1,1)
                 #,x.comp
                 )
 
@@ -152,14 +153,14 @@ y <- ssddata$舒适达_sales.value.mrmb * 1.6477053673 * 1000
 x.base <- ssddata[,4:7,drop=F]
 x.tmedia <- ssddata[,8,drop=F]
 x.dmedia <- ssddata[,9:12,drop=F]
-x.tmk <- ssddata[,13:15,drop=F]
+x.tmk <- ssddata[,13:15,drop=F]*1000
 x.comp <- ssddata[,16:45,drop=F]
 x.comp <- x.comp[,grep('mrmb',colnames(x.comp)),drop=F]
 x <- data.frame(y=y
                 ,x.base[,-4]
                 ,tmedia=ret(rowSums(x.tmedia),0.35)
                 ,dmedia=ret(rowSums(x.dmedia),0.25)
-                ,tmk=ret(rowSums(x.tmk),0.1)
+                ,tmk=ret(rowSums(x.tmk),0.1,1)
                 #,x.comp
 )
 
@@ -225,5 +226,5 @@ lines(rowSums(decomp2[,-1]),col=4)
 decomp2 <- cbind(decomp2[,-2:-5],
                  base=rowSums(decomp2[,2:5]),
                  fit=rowSums(decomp2[,-1]))
-rownames(decomp2) <- fbddata$code
+rownames(decomp2) <- fbddata$Code
 write.csv(decomp2,pipe('pbcopy'))
