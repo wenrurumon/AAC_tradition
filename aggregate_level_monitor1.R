@@ -5,8 +5,8 @@ library(dplyr)
 library(forecast)
 
 setwd('/Users/wenrurumon/Documents/GSK/GSK2019/forecasting/model')
-ssddata <- read.xlsx('Consumption Forecasting.xlsx',sheet='Sensodyne Model Data')
-fbddata <- read.xlsx('Consumption Forecasting.xlsx',sheet='Fenbid Model Data')
+ssddata <- read.xlsx('Sensodyne Working File.xlsx',sheet='Sensodyne Model Data')
+fbddata <- read.xlsx('Fenbid Working File.xlsx',sheet='Fenbid Model Data')
 
 ##########################
 # Module
@@ -55,11 +55,6 @@ colnames(fbddata) <- tolower(colnames(fbddata))
 fbddata <- mutate(fbddata,
                   category.avp=category_value.mrmb/category_volume.00du
                   )
-
-fbddata$total.fenbid_brand.reminder.spending <- 
-  qarima(fbddata$total.fenbid_brand.reminder.spending[1:24],h=10,ifplot=F)$fitted
-fbddata$total.fenbid_posm.spending <- 
-  qarima(fbddata$total.fenbid_posm.spending[1:24],h=10,ifplot=F)$fitted
 
 y <- fbddata$fenbid_value.mrmb * 2.2961061031 * 1000
 x.base <- fbddata[,c(5:9),drop=F][,2:4]
