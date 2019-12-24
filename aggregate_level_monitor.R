@@ -54,7 +54,7 @@ scalein <- function(x,mi=0.98,ma=1.02){
 colnames(fbddata) <- tolower(colnames(fbddata))
 fbddata <- mutate(fbddata,
                   category.avp=category_value.mrmb/category_volume.00du
-                  )
+)
 
 y <- fbddata$fenbid_value.mrmb * 2.2961061031 * 1000
 x.base <- fbddata[,c(5:9),drop=F][,2:4]
@@ -63,22 +63,30 @@ x.dmedia <- fbddata[,c(11:14),drop=F]
 x.tmk <- fbddata[,c(15:16),drop=F]
 x.comp <- fbddata[,c(17:51),drop=F]
 x.comp <- x.comp[,grep('mrmb',colnames(x.comp)),drop=F]
+
+x.tmedia <- apply(x.tmedia,2,ret,r=0.35,l=0)
+x.dmedia <- apply(x.dmedia,2,ret,r=0.25,l=0)
+x.tmk <- apply(x.tmk,2,ret,r=0.1,l=1)
+
 x <- data.frame(y=y
                 ,x.base
-                ,tmedia=ret(rowSums(x.tmedia),0.35)
-                ,dmedia=ret(rowSums(x.dmedia),0.25)
-                ,tmk=ret(rowSums(x.tmk),0.1,1)
+                ,tmedia=rowSums(x.tmedia)
+                ,dmedia=rowSums(x.dmedia)
+                ,tmk=rowSums(x.tmk)
                 #,x.comp
-                )
+)
 
 #First Model
 hold <- x$tmedia + x$dmedia + x$tmk
 y2 <- y-hold
-model <- lm(y2~x$fenbid_distribution.wd+x$fenbid_price.avp+x$category_value.mrmb)
+B <- c(coef(lm(y2~x$fenbid_distribution.wd-1)),
+       coef(lm(y2~x$fenbid_price.avp-1)),
+       coef(lm(y2~x$category_value.mrmb-1)))
+B <- lm(y2 ~ cbind(x$fenbid_distribution.wd,x$fenbid_price.avp,x$category_value.mrmb) %*% cbind(B)-1) %>% coef * B
 
 #Second Model
 X <- x; X[,1] <- 1; colnames(X)[1] <- 'intercept'
-B <- as.numeric(c(coef(model),rep(1,3)))
+B <- c(0,B,1,1,1.5)
 Y.raw <- as.matrix(X) %*% (cbind(B))
 obj <- function(b){
   sum((as.matrix(X) %*% (cbind(b))-y)^2)
@@ -87,26 +95,47 @@ obj.raw <- obj(B)
 B.optim1 <- optim(B,obj,control=list(maxit=5000))
 
 #Third Model
-obj <- function(b,l1,l2){
+obj <- function(b,l1,l2,l3){
   loss1 <- ((sum((as.matrix(X) %*% (cbind(b))-y)^2)/B.optim1$value-1))^2
   loss2 <- sum(((abs(b/B-1))[2:4])^2) * l1
   loss3 <- sum(((abs(b/B-1))[-1:-4])^2) * l2
-  loss1+loss2+loss3
+  loss4 <- sum(b<0) * l3
+  loss1+loss2+loss3+loss4
 }
-B.optim2 <- optim(B,obj,l1=0.1,l2=1,control=list(maxit=5000))
+B.optim2 <- optim(B,obj,l1=0.1,l2=1,l3=0.85,control=list(maxit=5000))
+print(ifelse(B.optim2$convergence==0,'convergence','anti-convergence'))
 cbind(B,B.optim1$par,B.optim2$par)
 
 #Model Summary
 plot.ts(y)
 lines(as.matrix(X) %*% cbind(B),col=2)
 lines(as.matrix(X) %*% cbind(B.optim1$par),col=3)
-lines(as.matrix(X) %*% cbind(B.optim2$par),col=4)
-decomp <- as.matrix(X)
-for(i in 1:ncol(decomp)){
-  decomp[,i] <- decomp[,i]*B.optim2$par[i]
+lines(as.matrix(X) %*% cbind(B <- B.optim2$par),col=4)
+
+#Cross Vechile
+decomp <- data.frame(
+      y = y,
+      intercept = B[1] * 1,
+      wd = X[,2] * B[2],
+      avp = X[,3] * B[3],
+      cat = X[,4] * B[4],
+      tmedia = x.tmedia * B[5],
+      dmedia = x.dmedia * B[6],
+      tmk = x.tmk * B[7])
+Y <- decomp[,1]
+X <- as.matrix(decomp[,-1])
+obj <- function(b,l1=1,l2=1){
+  loss1 <- sum((Y - X %*% cbind(b))^2)/sum((Y - rowSums(X))^2) * l1
+  loss2 <- mean((b-1)^2) * l2
+  loss1 + loss2
 }
-decomp <- cbind(value=y,decomp)
-plot.ts(y); lines(rowSums(decomp[,-1]),col=2)
+B.optim3 <- optim(rep(1,ncol(X)),obj,l1=1,l2=2,control=list(maxit=5000))
+plot.ts(Y); lines(rowSums(X),col=2); lines(X%*%cbind(B <- B.optim3$par),col=4)
+
+for(i in 1:ncol(X)){
+  X[,i] <- X[,i] * B[i]
+}
+decomp <- cbind(Y=Y,X)
 
 #Monthly Adjustment
 B <- matrix(1,nrow=nrow(decomp),ncol=ncol(decomp)-1)
@@ -117,7 +146,7 @@ obj <- function(b,l1,l2){
   loss1*l1+loss2*l2
 }
 B.optim3 <- optim(B,obj,l1=0.1,l2=1,control=list(maxit=20000))
-B.optim3$par <- apply(B.optim3$par,2,scalein,mi=0.98,ma=1.02)
+B.optim3$par <- apply(B.optim3$par,2,scalein,mi=0.95,ma=1.05)
 B.optim3$par[,2:4] <- apply(B.optim3$par[,2:4],2,scalein,mi=0.99,ma=1.01)
 decomp2 <- decomp
 decomp2[,-1] <- B.optim3$par * decomp[,-1]
@@ -133,6 +162,7 @@ decomp2 <- cbind(decomp2[,-2:-5],
                  base=rowSums(decomp2[,2:5]),
                  fit=rowSums(decomp2[,-1]))
 rownames(decomp2) <- fbddata$code
+mean(abs(decomp2[,ncol(decomp2)]/decomp2[,1]-1))
 write.csv(decomp2,pipe('pbcopy'))
 
 ##########################
@@ -167,7 +197,7 @@ plot.ts(y); lines(predict(model)+hold,col=2)
 
 #Second Model
 X <- x; X[,1] <- 1; colnames(X)[1] <- 'intercept'
-B <- as.numeric(c(coef(model),rep(1,3)))
+B <- as.numeric(c(coef(model),1,1,1.5))
 Y.raw <- as.matrix(X) %*% (cbind(B))
 obj <- function(b){
   sum((as.matrix(X) %*% (cbind(b))-y)^2)
@@ -176,26 +206,46 @@ obj.raw <- obj(B)
 B.optim1 <- optim(B,obj,control=list(maxit=5000))
 
 #Third Model
-obj <- function(b,l1,l2){
+obj <- function(b,l1,l2,l3){
   loss1 <- ((sum((as.matrix(X) %*% (cbind(b))-y)^2)/B.optim1$value-1))^2
   loss2 <- sum(((abs(b/B-1))[2:4])^2) * l1
   loss3 <- sum(((abs(b/B-1))[-1:-4])^2) * l2
-  loss1+loss2+loss3
+  loss4 <- sum(b<0) * l3
+  loss1+loss2+loss3+loss4
 }
-B.optim2 <- optim(B,obj,l1=0.1,l2=1,control=list(maxit=5000))
+B.optim2 <- optim(B,obj,l1=0.1,l2=1,l3=.1,control=list(maxit=5000))
 cbind(B,B.optim1$par,B.optim2$par)
 
 #Model Summary
 plot.ts(y)
 lines(as.matrix(X) %*% cbind(B),col=2)
 lines(as.matrix(X) %*% cbind(B.optim1$par),col=3)
-lines(as.matrix(X) %*% cbind(B.optim2$par),col=4)
-decomp <- as.matrix(X)
-for(i in 1:ncol(decomp)){
-  decomp[,i] <- decomp[,i]*B.optim2$par[i]
+lines(as.matrix(X) %*% cbind(B <- B.optim2$par),col=4)
+
+#Cross Vechile
+decomp <- data.frame(
+  y = y,
+  intercept = B[1] * 1,
+  wd = X[,2] * B[2],
+  avp = X[,3] * B[3],
+  cat = X[,4] * B[4],
+  tmedia = x.tmedia * B[5],
+  dmedia = x.dmedia * B[6],
+  tmk = x.tmk * B[7])
+Y <- decomp[,1]
+X <- as.matrix(decomp[,-1])
+obj <- function(b,l1=1,l2=1){
+  loss1 <- sum((Y - X %*% cbind(b))^2)/sum((Y - rowSums(X))^2) * l1
+  loss2 <- mean((b-1)^2) * l2
+  loss1 + loss2
 }
-decomp <- cbind(value=y,decomp)
-plot.ts(y); lines(rowSums(decomp[,-1]),col=2)
+B.optim3 <- optim(rep(1,ncol(X)),obj,l1=1,l2=2,control=list(maxit=5000))
+plot.ts(Y); lines(rowSums(X),col=2); lines(X%*%cbind(B <- B.optim3$par),col=4)
+
+for(i in 1:ncol(X)){
+  X[,i] <- X[,i] * B[i]
+}
+decomp <- cbind(Y=Y,X)
 
 #Monthly Adjustment
 B <- matrix(1,nrow=nrow(decomp),ncol=ncol(decomp)-1)
@@ -206,9 +256,9 @@ obj <- function(b,l1,l2){
   loss1*l1+loss2*l2
 }
 B.optim3 <- optim(B,obj,l1=0.1,l2=1,control=list(maxit=20000))
-B.optim3$par <- apply(B.optim3$par,2,scalein,mi=0.9,ma=1.1)
+B.optim3$par <- apply(B.optim3$par,2,scalein,mi=0.95,ma=1.05)
+B.optim3$par[,2:4] <- apply(B.optim3$par[,2:4],2,scalein,mi=0.99,ma=1.01)
 decomp2 <- decomp
-B.optim3$par[,2:4] <- apply(B.optim3$par[,2:4],2,scalein,mi=0.98,ma=1.02)
 decomp2[,-1] <- B.optim3$par * decomp[,-1]
 decomp2[,2] <- mean(decomp2[,2])
 
@@ -221,5 +271,6 @@ lines(rowSums(decomp2[,-1]),col=4)
 decomp2 <- cbind(decomp2[,-2:-5],
                  base=rowSums(decomp2[,2:5]),
                  fit=rowSums(decomp2[,-1]))
-rownames(decomp2) <- fbddata$Code
+rownames(decomp2) <- fbddata$code
+mean(abs(decomp2[,ncol(decomp2)]/decomp2[,1]-1))
 write.csv(decomp2,pipe('pbcopy'))
