@@ -114,14 +114,14 @@ lines(as.matrix(X) %*% cbind(B <- B.optim2$par),col=4)
 
 #Cross Vechile
 decomp <- data.frame(
-      y = y,
-      intercept = B[1] * 1,
-      wd = X[,2] * B[2],
-      avp = X[,3] * B[3],
-      cat = X[,4] * B[4],
-      tmedia = x.tmedia * B[5],
-      dmedia = x.dmedia * B[6],
-      tmk = x.tmk * B[7])
+  y = y,
+  intercept = B[1] * 1,
+  wd = X[,2] * B[2],
+  avp = X[,3] * B[3],
+  cat = X[,4] * B[4],
+  tmedia = x.tmedia * B[5],
+  dmedia = x.dmedia * B[6],
+  tmk = x.tmk * B[7])
 Y <- decomp[,1]
 X <- as.matrix(decomp[,-1])
 obj <- function(b,l1=1,l2=1){
@@ -131,7 +131,22 @@ obj <- function(b,l1=1,l2=1){
 }
 B.optim3 <- optim(rep(1,ncol(X)),obj,l1=1,l2=2,control=list(maxit=5000))
 plot.ts(Y); lines(rowSums(X),col=2); lines(X%*%cbind(B <- B.optim3$par),col=4)
+for(i in 1:ncol(X)){
+  X[,i] <- X[,i] * B[i]
+}
+decomp <- cbind(Y=Y,X)
 
+#Base Variable Adjustment
+B <- rep(1,4)
+obj <- function(b,l1,l2){
+  b <- c(b,rep(1,ncol(decomp)-5))
+  loss1 <- sum((decomp[,1] - rowSums(b * decomp[,-1]))^2)/
+    sum((decomp[,1] - rowSums(decomp[,-1]))^2) * l1
+  loss2 <- mean((b[1:4]-1)^2) * l2
+  loss1 + loss2
+}
+B.optim4 <- optim(B,obj,l1=1,l2=1,control=list(maxit=5000))
+plot.ts(Y); lines(rowSums(X),col=2); lines(X%*%cbind(B <- c(B.optim4$par,rep(1,ncol(decomp)-5))),col=4)
 for(i in 1:ncol(X)){
   X[,i] <- X[,i] * B[i]
 }
@@ -145,11 +160,11 @@ obj <- function(b,l1,l2){
   loss2 <- var(as.vector(b))
   loss1*l1+loss2*l2
 }
-B.optim3 <- optim(B,obj,l1=0.1,l2=1,control=list(maxit=20000))
-B.optim3$par <- apply(B.optim3$par,2,scalein,mi=0.95,ma=1.05)
-B.optim3$par[,2:4] <- apply(B.optim3$par[,2:4],2,scalein,mi=0.99,ma=1.01)
+B.optim5 <- optim(B,obj,l1=0.1,l2=1,control=list(maxit=20000))
+B.optim5$par <- apply(B.optim5$par,2,scalein,mi=0.95,ma=1.05)
+B.optim5$par[,2:4] <- apply(B.optim5$par[,2:4],2,scalein,mi=0.99,ma=1.01)
 decomp2 <- decomp
-decomp2[,-1] <- B.optim3$par * decomp[,-1]
+decomp2[,-1] <- B.optim5$par * decomp[,-1]
 decomp2[,2] <- mean(decomp2[,2])
 
 #Output
@@ -247,6 +262,23 @@ for(i in 1:ncol(X)){
 }
 decomp <- cbind(Y=Y,X)
 
+
+#Base Variable Adjustment
+B <- rep(1,4)
+obj <- function(b,l1,l2){
+  b <- c(b,rep(1,ncol(decomp)-5))
+  loss1 <- sum((decomp[,1] - rowSums(b * decomp[,-1]))^2)/
+    sum((decomp[,1] - rowSums(decomp[,-1]))^2) * l1
+  loss2 <- mean((b[1:4]-1)^2) * l2
+  loss1 + loss2
+}
+B.optim4 <- optim(B,obj,l1=1,l2=1,control=list(maxit=5000))
+plot.ts(Y); lines(rowSums(X),col=2); lines(X%*%cbind(B <- c(B.optim4$par,rep(1,ncol(decomp)-5))),col=4)
+for(i in 1:ncol(X)){
+  X[,i] <- X[,i] * B[i]
+}
+decomp <- cbind(Y=Y,X)
+
 #Monthly Adjustment
 B <- matrix(1,nrow=nrow(decomp),ncol=ncol(decomp)-1)
 obj <- function(b,l1,l2){
@@ -255,11 +287,11 @@ obj <- function(b,l1,l2){
   loss2 <- var(as.vector(b))
   loss1*l1+loss2*l2
 }
-B.optim3 <- optim(B,obj,l1=0.1,l2=1,control=list(maxit=20000))
-B.optim3$par <- apply(B.optim3$par,2,scalein,mi=0.95,ma=1.05)
-B.optim3$par[,2:4] <- apply(B.optim3$par[,2:4],2,scalein,mi=0.99,ma=1.01)
+B.optim5 <- optim(B,obj,l1=0.1,l2=1,control=list(maxit=20000))
+B.optim5$par <- apply(B.optim5$par,2,scalein,mi=0.95,ma=1.05)
+B.optim5$par[,2:4] <- apply(B.optim5$par[,2:4],2,scalein,mi=0.99,ma=1.01)
 decomp2 <- decomp
-decomp2[,-1] <- B.optim3$par * decomp[,-1]
+decomp2[,-1] <- B.optim5$par * decomp[,-1]
 decomp2[,2] <- mean(decomp2[,2])
 
 #Output
