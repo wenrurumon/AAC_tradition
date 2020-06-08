@@ -19,6 +19,7 @@ rsq <- function(x,y){
   summary(lm(y~x))$r.square
 }
 scalelim <- function(x,f=1.5){
+  x <- as.numeric(unlist(x))
   (range(x,na.rm=T)-mean(x,na.rm=T))*f+mean(x,na.rm=T)
 }
 comval <- function(x){
@@ -33,10 +34,12 @@ comval <- function(x){
 setwd('/Users/wenrurumon/Documents/GSK/forecasting/')
 temp <- openxlsx::read.xlsx('Fenbid_workingfile.xlsx')
 temp$Month <- as.Date(temp$Month)
-b <- read.csv('coef_summary.csv',row.names=1)
 
 ################################################
 #Data Review
+#After client upload the file of Fenbid_workingfile.xlsx
+#Generate data review RMD
+#Client can modify the data via the website
 ################################################
 
 X <- data.table(
@@ -52,6 +55,7 @@ ggplot() + geom_line(data=p,aes(x=Month,y=value,colour=Status),size=1) +
 p <- p %>% group_by(Month=year(Month),variable) %>% summarise(value=mean(value))
 ggplot() + geom_bar(data=p,aes(x=Month,y=value),fill='steelblue',stat='identity') +
   labs(x='Year',y=unique(p$variable),title=paste('Data review -',unique(p$variable))) 
+reshape2::acast(p,Month~variable)
 cat(paste0(unique(p$variable),' for Fenbid is expected at about ',round(p$value[4],2),
            '% in CY2020.\nWhich is ',round(p$value[4]/p$value[3]*100,2),'% of the value in 2019.\n'))
 
@@ -61,6 +65,7 @@ ggplot() + geom_line(data=p,aes(x=Month,y=value,colour=Status),size=1) +
 p <- p %>% group_by(Month=year(Month),variable) %>% summarise(value=mean(value))
 ggplot() + geom_bar(data=p,aes(x=Month,y=value),fill='steelblue',stat='identity') +
   labs(x='Year',y=unique(p$variable),title=paste('Data review -',unique(p$variable))) 
+reshape2::acast(p,Month~variable)
 cat(paste0(unique(p$variable),' for Fenbid is expected at about ',round(p$value[4],2),
            ' in CY2020.\nWhich is ',round(p$value[4]/p$value[3]*100,2),'% of the value in 2019.\n'))
 
@@ -70,6 +75,7 @@ ggplot() + geom_line(data=p,aes(x=Month,y=value,colour=Status),size=1) +
 p <- p %>% group_by(Month=year(Month),variable) %>% summarise(value=sum(value))
 ggplot() + geom_bar(data=p,aes(x=Month,y=value),fill='steelblue',stat='identity') +
   labs(x='Year',y=unique(p$variable),title=paste('Data review -',unique(p$variable))) 
+reshape2::acast(p,Month~variable)
 cat(paste0(unique(p$variable),' for Fenbid is expected at about ',comval(p$value[4]),
            ' in CY2020.\nWhich is ',round(p$value[4]/p$value[3]*100,2),'% of the value in 2019.\n'))
 
@@ -81,6 +87,7 @@ ggplot() + geom_col(data=p,aes(x=Month,y=value,fill=Status),size=1,stat='identit
 p <- p %>% group_by(Month=year(Month),variable) %>% summarise(value=sum(value))
 ggplot() + geom_bar(data=p,aes(x=Month,y=value),fill='steelblue',stat='identity') +
   labs(x='Year',y=unique(p$variable),title=paste('Data review -',unique(p$variable))) 
+reshape2::acast(p,Month~variable)
 cat(paste0(unique(p$variable),' for Fenbid is expected at about ',comval(p$value[4]),
            ' in CY2020.\nWhich is ',round(p$value[4]/p$value[3]*100,2),'% of the value in 2019.\n'))
 
@@ -90,6 +97,7 @@ ggplot() + geom_col(data=p,aes(x=Month,y=value,fill=Status),size=1,stat='identit
 p <- p %>% group_by(Month=year(Month),variable) %>% summarise(value=sum(value))
 ggplot() + geom_bar(data=p,aes(x=Month,y=value),fill='steelblue',stat='identity') +
   labs(x='Year',y=unique(p$variable),title=paste('Data review -',unique(p$variable))) 
+reshape2::acast(p,Month~variable)
 cat(paste0(unique(p$variable),' for Fenbid is expected at about ',comval(p$value[4]),
            ' in CY2020.\nWhich is ',round(p$value[4]/p$value[3]*100,2),'% of the value in 2019.\n'))
 
@@ -99,6 +107,7 @@ ggplot() + geom_col(data=p,aes(x=Month,y=value,fill=Status),size=1,stat='identit
 p <- p %>% group_by(Month=year(Month),variable) %>% summarise(value=sum(value))
 ggplot() + geom_bar(data=p,aes(x=Month,y=value),fill='steelblue',stat='identity') +
   labs(x='Year',y=unique(p$variable),title=paste('Data review -',unique(p$variable))) 
+reshape2::acast(p,Month~variable)
 cat(paste0(unique(p$variable),' for Fenbid is expected at about ',comval(p$value[4]),
            ' in CY2020.\nWhich is ',round(p$value[4]/p$value[3]*100,2),'% of the value in 2019.\n'))
 
@@ -108,6 +117,7 @@ ggplot() + geom_col(data=p,aes(x=Month,y=value,fill=Status),size=1,stat='identit
 p <- p %>% group_by(Month=year(Month),variable) %>% summarise(value=sum(value))
 ggplot() + geom_bar(data=p,aes(x=Month,y=value),fill='steelblue',stat='identity') +
   labs(x='Year',y=unique(p$variable),title=paste('Data review -',unique(p$variable))) 
+reshape2::acast(p,Month~variable)
 cat(paste0(unique(p$variable),' for Fenbid is expected at about ',comval(p$value[4]),
            ' in CY2020.\nWhich is ',round(p$value[4]/p$value[3]*100,2),'% of the value in 2019.\n'))
 
@@ -119,6 +129,7 @@ ggplot() + geom_col(data=p,aes(x=Month,y=value,fill=Status),size=1,stat='identit
 p <- p %>% group_by(Month=year(Month),variable) %>% summarise(value=sum(value))
 ggplot() + geom_bar(data=p,aes(x=Month,y=value),fill='steelblue',stat='identity') +
   labs(x='Year',y=unique(p$variable),title=paste('Data review -',unique(p$variable))) 
+reshape2::acast(p,Month~variable)
 cat(paste0(unique(p$variable),' for Fenbid is expected at about ',comval(p$value[4]),
            ' in CY2020.\nWhich is ',round(p$value[4]/p$value[3]*100,2),'% of the value in 2019.\n'))
 
@@ -128,15 +139,18 @@ ggplot() + geom_col(data=p,aes(x=Month,y=value,fill=Status),size=1,stat='identit
 p <- p %>% group_by(Month=year(Month),variable) %>% summarise(value=sum(value))
 ggplot() + geom_bar(data=p,aes(x=Month,y=value),fill='steelblue',stat='identity') +
   labs(x='Year',y=unique(p$variable),title=paste('Data review -',unique(p$variable))) 
+reshape2::acast(p,Month~variable)
 cat(paste0(unique(p$variable),' for Fenbid is expected at about ',comval(p$value[4]),
            ' in CY2020.\nWhich is ',round(p$value[4]/p$value[3]*100,2),'% of the value in 2019.\n'))
 
 ################################################
 #Prediction Review
+#After client confirms the data, activate model and generate report
 ################################################
 
-#Model
+#Modeling
 
+b <- read.csv('coef_summary.csv',row.names=1)
 X <- data.table(
   select(temp,1,2),
   intercept = 1,
@@ -158,7 +172,7 @@ p <- data.frame(month=temp$Month,Actual=temp$Fenbid.DU,Predict=rowSums(decomp)) 
 ) %>% melt(id='month')
 ggplot() +
   geom_line(data=p,aes(x=month,y=value,colour=variable),size=1) +
-  ylim((range(p$value,na.rm=T)-mean(p$value,na.rm=T))*2+mean(p$value,na.rm=T))+
+  ylim(scalelim(p$value))+
   labs(title='Consumption Forecasting in Sales Volume',x='Month',y='Volume (MDU)',colour='')
 p <- p %>% group_by(month=year(month),variable) %>% summarise(value=sum(value,na.rm=T)/1000)
 ggplot() +
@@ -177,7 +191,7 @@ p <- data.frame(month=temp$Month,Actual=temp$Fenbid.Value,Predict=rowSums(decomp
   melt(id='month')
 ggplot() +
   geom_line(data=p,aes(x=month,y=value,colour=variable),size=1) +
-  ylim((range(p$value,na.rm=T)-mean(p$value,na.rm=T))*2+mean(p$value,na.rm=T))+
+  ylim(scalelim(p$value))+
   labs(title='Consumption Forecasting in Sales Value',x='Month',y='Volume (MRMB)',colour='')
 p <- p %>% group_by(month=year(month),variable) %>% summarise(value=sum(value,na.rm=T)/1000)
 ggplot() +
@@ -250,7 +264,7 @@ ggplot() +
   geom_bar(data=p,aes(x=variable,y=value),stat='identity',fill='steelblue') +
   coord_flip() +
   ylim(max(abs(p$value))*c(-1.2,1.2)) +
-  labs(x='',y='Due to %',title='Source of Volume Change')
+  labs(x='',y='Due to %',title='Source of Value Change')
 
 p <- data.frame(month=year(temp$Month),decomp2) 
 p <- apply(p[,-1],2,function(x){tapply(x,p[,1],sum)})[,-1]
@@ -263,7 +277,7 @@ ggplot() +
   geom_bar(data=p,aes(x=variable,y=value),stat='identity',fill='steelblue') +
   coord_flip() +
   ylim(max(abs(p$value))*c(-1.2,1.2)) +
-  labs(x='',y='Due to %',title='Source of Volume Change')
+  labs(x='',y='Due to %',title='Source of Value Change')
 
 p <- data.frame(month=temp$Month[-1:-12],
   (decomp[-1:-12,]-decomp[-(nrow(decomp)-0:11),])/rowSums(decomp)[-(nrow(decomp)-0:11)]) %>%
@@ -274,7 +288,7 @@ p <- p %>% group_by(month,variable) %>% summarise(value=sum(value))
 ggplot() +
   geom_bar(data=p,aes(x=month,y=value,fill=variable),stat='identity') +
   ylim(range(p$value)*2) + 
-  labs(x='Month',y='Due to %',fill='Buckets',title='Volume Due to by Buckets') 
+  labs(x='Month',y='Due to %',fill='Buckets',title='Value Due to by Buckets') 
 
 
 ################################################
@@ -284,7 +298,7 @@ ggplot() +
 p <- data.frame(month=temp$Month,Actual=temp$Fenbid.DU,Fit=rowSums(decomp)) %>% filter(!is.na(Actual))
 ggplot() + 
   geom_line(data=melt(p,id='month'),aes(x=month,y=value,colour=variable),size=1) + 
-  ylim(c(min(p[,2],na.rm=T)/2,max(p[,2]))) +
+  ylim(scalelim(p[,2])) +
   labs(
     title='Fit Chart in Sales Volume',
     subtitle=
@@ -294,7 +308,7 @@ ggplot() +
 p <- data.frame(month=p$month[-1:-12],(p[-1:-12,-1]/p[-(nrow(p)-0:11),-1]-1)*100)
 ggplot() + 
   geom_line(data=melt(p,id='month'),aes(x=month,y=value,colour=variable),size=1) + 
-  ylim(range(p[,-1])*1.5) +
+  ylim(scalelim(p[,-1])) +
   labs(
     title='Fit Chart in Volume Growth%',
     subtitle=
@@ -304,7 +318,7 @@ ggplot() +
 p <- data.frame(month=temp$Month,Actual=temp$Fenbid.Value,Fit=rowSums(decomp)*temp$DU.Price) %>% filter(!is.na(Actual))
 ggplot() + 
   geom_line(data=melt(p,id='month'),aes(x=month,y=value,colour=variable),size=1) + 
-  ylim(c(min(p[,2],na.rm=T)/2,max(p[,2]))) +
+  ylim(scalelim(p[,-1])) +
   labs(
     title='Fit Chart in Sales Value',
     subtitle=
@@ -314,7 +328,7 @@ ggplot() +
 p <- data.frame(month=p$month[-1:-12],(p[-1:-12,-1]/p[-(nrow(p)-0:11),-1]-1)*100)
 ggplot() + 
   geom_line(data=melt(p,id='month'),aes(x=month,y=value,colour=variable),size=1) + 
-  ylim(range(p[,-1])*1.5) +
+  ylim(scalelim(p[,-1])) +
   labs(
     title='Fit Chart in Value Growth%',
     subtitle=
