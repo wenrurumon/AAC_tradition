@@ -1,0 +1,437 @@
+```{r setup, include=FALSE}
+
+rm(list=ls())
+
+library(openxlsx)
+library(dplyr)
+library(data.table)
+library(forecast)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+library(grid)
+library(gridExtra)
+library(scales)
+library(RColorBrewer)
+library(ggthemes)
+
+theme_set(theme_minimal())
+ret <- function(x,r=0.3,l=0){
+  out <- x
+  for(i in 2:length(x)){
+    out[i] <- out[i-1]*r+x[i]
+  }
+  out <- c(rep(0,l),out)[1:length(out)]
+  out * sum(x)/sum(out)
+}
+rsq <- function(x,y){
+  summary(lm(y~x))$r.square
+}
+scalelim <- function(x,f=1.5){
+  x <- as.numeric(unlist(x))
+  (range(x,na.rm=T)-mean(x,na.rm=T))*f+mean(x,na.rm=T)
+}
+comval <- function(x){
+  x <- round(x,0)
+  x <- strsplit(paste(x),'')[[1]]
+  x[(length(x):1)%%3==0] <- paste0(',',x[(length(x):1)%%3==0])
+  x <- paste(x,collapse='')
+  if(substr(x,1,1)==','){x <- substr(x,2,nchar(x))}
+  return(x)
+}
+vplayout <- function(x,y){viewport(layout.pos.row = x, layout.pos.col = y)}
+temp <- openxlsx::read.xlsx('/Users/wenrurumon/Documents/GSK/forecasting/Fenbid_workingfile.xlsx')
+temp$Month <- as.Date(temp$Month)
+for(i in 3:ncol(temp)){
+  if(mean(temp[[i]],na.rm=T)>10000000){
+    temp[[i]] <- temp[[i]]/1000000
+    colnames(temp)[i] <- paste0(colnames(temp)[i],'(MM)')
+  } else if(mean(temp[[i]],na.rm=T)>10000){
+        temp[[i]] <- temp[[i]]/1000
+    colnames(temp)[i] <- paste0(colnames(temp)[i],'(M)')
+  }
+}
+
+```
+
+---
+
+# Data Review - Fenbid Forecasting Report
+
+**Nielsen Advanced Analytic Consulting**
+
+`r Sys.Date()`
+
+---
+
+## Content
+
+
+**1 Data summary**
+
+**2 Base Factors**
+
+-- 2.1 Weighted Distribution
+
+-- 2.2 DU Price
+
+-- 2.3 Category Value
+
+**3 ATL Factors**
+
+-- 3.1 TV
+
+-- 3.2 OTV 
+
+-- 3.3 Digital
+
+-- 3.4 SEM 
+
+**4 BTL Factors**
+
+-- 4.1 Brand Reminder 
+
+-- 4.2 POSM 
+
+<br/>
+
+---
+
+### 1.Data summary
+
+<br/>
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+options(digits=4,scipen=200)
+X <- data.table(
+  select(temp,1,2),
+  select(temp,5,6,7),
+  select(temp,8:13)
+)
+
+X.summary <- melt(select(X,-Status),id='Month') %>%
+  group_by(year=year(Month),variable) %>%
+  summarise(value=sum(value)) %>% arrange(variable) %>%
+  mutate(value=ifelse(variable=='Weighted.Distribution',value/12,value)) %>%
+  reshape2::acast(variable~year) %>% round(1)
+kable(X.summary)%>%kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+<br/>
+
+---
+
+<br/>
+
+### 2. Volumetric Data Review
+
+<br/>
+
+#### 2.1 Weighted Distribution
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+p <- melt(select(X,1:3),id=c('Month','Status')) %>% mutate(variable=gsub('\\.',' ',variable))
+p1 <- ggplot() + geom_line(data=p,aes(x=Month,y=value,colour=Status,group=Status),size=1) +
+  labs(x='Month',y=unique(p$variable),colour='')+ theme(legend.position="top")
+p <- p %>% group_by(Month=year(Month),variable) %>% summarise(value=mean(value))
+p2 <- ggplot() + geom_bar(data=p,aes(x=Month,y=value,fill=c(rep('1',3),'2')),stat='identity') +
+  labs(x='Year',y=unique(p$variable)) + theme(legend.position="none")
+
+```
+
+`r paste0(unique(p$variable),' for Fenbid is expected at about ',round(p$value[4],2),' in CY2020,')`
+`r paste0('which is ',round(abs(round(p$value[4]/p$value[3]*100,2)-100),2),'% ', ifelse(p$value[4]/p$value[3]>1,'higher ','lower '),'than the value in 2019.\n')`
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+grid.newpage()
+pushViewport(viewport(layout = grid.layout(5,6)))
+
+print(p1, vp = vplayout(1:3,1:6))
+print(p2, vp = vplayout(4:5,2:5))
+
+p <- melt(select(X,1:3),id=c('Month','Status')) %>% mutate(variable=gsub('\\.',' ',variable))%>%filter(year(Month)>=year(Sys.Date())-1)%>% group_by(year=year(Month),Month=month(Month),variable) %>% summarise(value=mean(value))
+p$value <- round(p$value,2)
+
+kable(reshape2::acast(p,year~Month))%>%kable_styling(bootstrap_options = c("striped", "hover"))
+
+
+```
+
+<br/>
+
+<br/>
+
+#### 2.2 DU Price
+
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}         
+
+
+p <- melt(select(X,c(1:2,4)),id=c('Month','Status')) %>% mutate(variable=gsub('\\.',' ',variable))
+p1 <- ggplot() + geom_line(data=p,aes(x=Month,y=value,colour=Status),size=1) +
+  labs(x='Month',y=unique(p$variable),colour='')+ theme(legend.position="top")
+p <- p %>% group_by(Month=year(Month),variable) %>% summarise(value=mean(value))
+p2 <- ggplot() + geom_bar(data=p,aes(x=Month,y=value,fill=c(rep('1',3),'2')),stat='identity') +
+  labs(x='Year',y=unique(p$variable)) + theme(legend.position="none")
+
+
+
+```
+`r paste0(unique(p$variable),' for Fenbid is expected at about ',round(p$value[4],2),' in CY2020,')`
+`r paste0('which is ',round(abs(round(p$value[4]/p$value[3]*100,2)-100),2),'% ', ifelse(p$value[4]/p$value[3]>1,'higher ','lower '),'than the value in 2019.\n')`
+```{r echo=FALSE, warning=FALSE, message=FALSE}         
+grid.newpage()
+pushViewport(viewport(layout = grid.layout(5,6)))
+
+print(p1, vp = vplayout(1:3,1:6))
+print(p2, vp = vplayout(4:5,2:5))
+
+p <- melt(select(X,c(1:2,4)),id=c('Month','Status')) %>% mutate(variable=gsub('\\.',' ',variable))%>%filter(year(Month)>=year(Sys.Date())-1)%>% group_by(year=year(Month),Month=month(Month),variable) %>% summarise(value=mean(value))
+p$value <- round(p$value,2)
+
+kable(reshape2::acast(p,year~Month))%>%kable_styling(bootstrap_options = c("striped", "hover"))
+
+```
+
+<br/>
+
+<br/>
+
+#### 2.3 Category Value
+
+
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE} 
+
+p <- melt(select(X,c(1:2,5)),id=c('Month','Status')) %>% mutate(variable=gsub('\\.',' ',variable))
+p1 <- ggplot() + geom_line(data=p,aes(x=Month,y=value,colour=Status),size=1) +
+  labs(x='Month',y=unique(p$variable),colour='')+ theme(legend.position="top")
+p <- p %>% group_by(Month=year(Month),variable) %>% summarise(value=sum(value))
+p2 <- ggplot() + geom_bar(data=p,aes(x=Month,y=value,fill=c(rep('1',3),'2')),stat='identity') +
+  labs(x='Year',y=unique(p$variable)) + theme(legend.position="none")
+
+
+```
+`r paste0(unique(p$variable),' for Fenbid is expected at about ',comval(p$value[4]),' in CY2020,')`
+`r paste0('which is ',round(abs(round(p$value[4]/p$value[3]*100,2)-100),2),'% ', ifelse(p$value[4]/p$value[3]>1,'higher ','lower '),'than the value in 2019.\n')`
+```{r echo=FALSE, warning=FALSE, message=FALSE} 
+
+grid.newpage()
+pushViewport(viewport(layout = grid.layout(5,6)))
+print(p1, vp = vplayout(1:3,1:6))
+print(p2, vp = vplayout(4:5,2:5))
+p <- melt(select(X,c(1:2,5)),id=c('Month','Status')) %>% mutate(variable=gsub('\\.',' ',variable))%>%filter(year(Month)>=year(Sys.Date())-1)%>% group_by(year=year(Month),Month=month(Month),variable) %>% summarise(value=mean(value))
+p$value <- round(p$value,2)
+kable(reshape2::acast(p,year~Month))%>%kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+<br/>
+
+---
+
+<br/>
+
+### 3 ATL Data Review
+
+<br/>
+
+#### 3.1 TV Spending
+
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+p <- melt(select(X,c(1:2,6)),id=c('Month','Status')) %>% mutate(variable=gsub('\\.',' ',variable))
+p1 <- ggplot() + geom_col(data=p,aes(x=Month,y=value,fill=Status),size=1,stat='identity') +
+  labs(x='Month',y=unique(p$variable),fill='')+ theme(legend.position="top")
+p <- p %>% group_by(Month=year(Month),variable) %>% summarise(value=sum(value))
+p2 <- ggplot() + geom_bar(data=p,aes(x=Month,y=value,fill=c(rep('1',3),'2')),stat='identity') +
+  labs(x='Year',y=unique(p$variable)) + theme(legend.position="none")
+
+```
+`r paste0(unique(p$variable),' for Fenbid is expected at about ',comval(p$value[4]),' in CY2020,')`
+`r paste0('which is ',round(abs(round(p$value[4]/p$value[3]*100,2)-100),2),'% ', ifelse(p$value[4]/p$value[3]>1,'higher ','lower '),'than the value in 2019.\n')`
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+grid.newpage()
+pushViewport(viewport(layout = grid.layout(5,6)))
+
+print(p1, vp = vplayout(1:3,1:6))
+print(p2, vp = vplayout(4:5,2:5))
+
+p <- melt(select(X,c(1:2,6)),id=c('Month','Status')) %>% mutate(variable=gsub('\\.',' ',variable))%>%filter(year(Month)>=year(Sys.Date())-1)%>% group_by(year=year(Month),Month=month(Month),variable) %>% summarise(value=mean(value))
+p$value <- round(p$value,2)
+kable(reshape2::acast(p,year~Month))%>%kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+<br/>
+
+<br/>
+
+#### 3.2 OTV Spending
+
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}         
+
+p <- melt(select(X,c(1:2,7)),id=c('Month','Status')) %>% mutate(variable=gsub('\\.',' ',variable))
+p1 <- ggplot() + geom_col(data=p,aes(x=Month,y=value,fill=Status),size=1,stat='identity') +
+  labs(x='Month',y=unique(p$variable),fill='')+ theme(legend.position="top")
+p <- p %>% group_by(Month=year(Month),variable) %>% summarise(value=sum(value))
+p2 <- ggplot() + geom_bar(data=p,aes(x=Month,y=value,fill=c(rep('1',3),'2')),stat='identity') +
+  labs(x='Year',y=unique(p$variable)) + theme(legend.position="none")
+
+
+```
+`r paste0(unique(p$variable),' for Fenbid is expected at about ',comval(p$value[4]),' in CY2020,')`
+`r paste0('which is ',round(abs(round(p$value[4]/p$value[3]*100,2)-100),2),'% ', ifelse(p$value[4]/p$value[3]>1,'higher ','lower '),'than the value in 2019.\n')`
+```{r echo=FALSE, warning=FALSE, message=FALSE}         
+grid.newpage()
+pushViewport(viewport(layout = grid.layout(5,6)))
+
+print(p1, vp = vplayout(1:3,1:6))
+print(p2, vp = vplayout(4:5,2:5))
+
+p <- melt(select(X,c(1:2,7)),id=c('Month','Status')) %>% mutate(variable=gsub('\\.',' ',variable))%>%filter(year(Month)>=year(Sys.Date())-1)%>% group_by(year=year(Month),Month=month(Month),variable) %>% summarise(value=mean(value))
+kable(reshape2::acast(p,year~Month))%>%kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+<br/>
+
+<br/>
+
+#### 3.3 Digital Spending
+
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}     
+
+p <- melt(select(X,c(1:2,8)),id=c('Month','Status')) %>% mutate(variable=gsub('\\.',' ',variable))
+p1 <- ggplot() + geom_col(data=p,aes(x=Month,y=value,fill=Status),size=1,stat='identity') +
+  labs(x='Month',y=unique(p$variable),fill='')+ theme(legend.position="top")
+p <- p %>% group_by(Month=year(Month),variable) %>% summarise(value=sum(value))
+p2 <- ggplot() + geom_bar(data=p,aes(x=Month,y=value,fill=c(rep('1',3),'2')),stat='identity') +
+  labs(x='Year',y=unique(p$variable)) + theme(legend.position="none")
+
+```
+`r paste0(unique(p$variable),' for Fenbid is expected at about ',comval(p$value[4]),' in CY2020,')`
+`r paste0('which is ',round(abs(round(p$value[4]/p$value[3]*100,2)-100),2),'% ', ifelse(p$value[4]/p$value[3]>1,'higher ','lower '),'than the value in 2019.\n')`
+```{r echo=FALSE, warning=FALSE, message=FALSE}     
+grid.newpage()
+pushViewport(viewport(layout = grid.layout(5,6)))
+
+print(p1, vp = vplayout(1:3,1:6))
+print(p2, vp = vplayout(4:5,2:5))
+p <- melt(select(X,c(1:2,8)),id=c('Month','Status')) %>% mutate(variable=gsub('\\.',' ',variable))%>%filter(year(Month)>=year(Sys.Date())-1)%>% group_by(year=year(Month),Month=month(Month),variable) %>% summarise(value=mean(value))
+kable(reshape2::acast(p,year~Month))%>%kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+
+<br/>
+
+<br/>
+
+#### 3.4 SEM Spending
+
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}     
+
+p <- melt(select(X,c(1:2,9)),id=c('Month','Status')) %>% mutate(variable=gsub('\\.',' ',variable))
+p1 <- ggplot() + geom_col(data=p,aes(x=Month,y=value,fill=Status),size=1,stat='identity') +
+  labs(x='Month',y=unique(p$variable),fill='')+ theme(legend.position="top")
+p <- p %>% group_by(Month=year(Month),variable) %>% summarise(value=sum(value))
+p2 <- ggplot() + geom_bar(data=p,aes(x=Month,y=value,fill=c(rep('1',3),'2')),stat='identity') +
+  labs(x='Year',y=unique(p$variable)) + theme(legend.position="none")
+
+```
+`r paste0(unique(p$variable),' for Fenbid is expected at about ',comval(p$value[4]),' in CY2020,')`
+`r paste0('which is ',round(abs(round(p$value[4]/p$value[3]*100,2)-100),2),'% ', ifelse(p$value[4]/p$value[3]>1,'higher ','lower '),'than the value in 2019.\n')``
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}     
+grid.newpage()
+pushViewport(viewport(layout = grid.layout(5,6)))
+print(p1, vp = vplayout(1:3,1:6))
+print(p2, vp = vplayout(4:5,2:5))
+p <- melt(select(X,c(1:2,9)),id=c('Month','Status')) %>% mutate(variable=gsub('\\.',' ',variable))%>%filter(year(Month)>=year(Sys.Date())-1)%>% group_by(year=year(Month),Month=month(Month),variable) %>% summarise(value=mean(value))
+kable(reshape2::acast(p,year~Month))%>%kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+<br/>
+
+---
+
+<br/>
+
+### 4 BTL Data Review
+
+<br/>
+
+#### 4.1 Brand Reminder Spending
+
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+p <- melt(select(X,c(1:2,10)),id=c('Month','Status')) %>% mutate(variable=gsub('\\.',' ',variable))
+p1 <- ggplot() + geom_col(data=p,aes(x=Month,y=value,fill=Status),size=1,stat='identity') +
+  labs(x='Month',y=unique(p$variable),fill='')+ theme(legend.position="top")
+p <- p %>% group_by(Month=year(Month),variable) %>% summarise(value=sum(value))
+p2 <- ggplot() + geom_bar(data=p,aes(x=Month,y=value,fill=c(rep('1',3),'2')),stat='identity') +
+  labs(x='Year',y=unique(p$variable)) + theme(legend.position="none")
+
+```
+`r paste0(unique(p$variable),' for Fenbid is expected at about ',comval(p$value[4]),' in CY2020,')`
+`r paste0('which is ',round(abs(round(p$value[4]/p$value[3]*100,2)-100),2),'% ', ifelse(p$value[4]/p$value[3]>1,'higher ','lower '),'than the value in 2019.\n')`
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+grid.newpage()
+pushViewport(viewport(layout = grid.layout(5,6)))
+
+print(p1, vp = vplayout(1:3,1:6))
+print(p2, vp = vplayout(4:5,2:5))
+
+p <- melt(select(X,c(1:2,10)),id=c('Month','Status')) %>% mutate(variable=gsub('\\.',' ',variable))%>%filter(year(Month)>=year(Sys.Date())-1)%>% group_by(year=year(Month),Month=month(Month),variable) %>% summarise(value=mean(value))
+kable(reshape2::acast(p,year~Month))%>%kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+<br/>
+
+<br/>
+
+#### 4.2 POSM Spending
+
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+p <- melt(select(X,c(1:2,11)),id=c('Month','Status')) %>% mutate(variable=gsub('\\.',' ',variable))
+p1 <- ggplot() + geom_col(data=p,aes(x=Month,y=value,fill=Status),size=1,stat='identity') +
+  labs(x='Month',y=unique(p$variable),fill='')+ theme(legend.position="top")
+p <- p %>% group_by(Month=year(Month),variable) %>% summarise(value=sum(value))
+p2 <- ggplot() + geom_bar(data=p,aes(x=Month,y=value,fill=c(rep('1',3),'2')),stat='identity') +
+  labs(x='Year',y=unique(p$variable)) + theme(legend.position="none")
+
+```
+`r paste0(unique(p$variable),' for Fenbid is expected at about ',comval(p$value[4]),' in CY2020,')`
+`r paste0('which is ',round(abs(round(p$value[4]/p$value[3]*100,2)-100),2),'% ', ifelse(p$value[4]/p$value[3]>1,'higher ','lower '),'than the value in 2019.\n')`
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+grid.newpage()
+pushViewport(viewport(layout = grid.layout(5,6)))
+
+print(p1, vp = vplayout(1:3,1:6))
+print(p2, vp = vplayout(4:5,2:5))
+
+p <- melt(select(X,c(1:2,10)),id=c('Month','Status')) %>% mutate(variable=gsub('\\.',' ',variable))%>%filter(year(Month)>=year(Sys.Date())-1)%>% group_by(year=year(Month),Month=month(Month),variable) %>% summarise(value=mean(value))
+kable(reshape2::acast(p,year~Month))%>%kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+<br/>
+
+---
+
+<br/>
+
+### END of Data Review
