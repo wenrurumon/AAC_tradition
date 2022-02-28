@@ -3,6 +3,15 @@ rm(list=ls())
 setwd('/Users/wenrurumon/Documents/zirui/xiaomi')
 library(data.table)
 library(dplyr)
+library(ggplot2)
+
+write.clip <- function(x){
+  clip <- pipe('pbcopy','w')
+  print(x)
+  write.table(x, file=clip, sep = ',',row.names=T)   
+  close(clip)
+}
+
 raw <- fread("xiaomi_model_data.csv")
 raw[raw==''] <- 0
 raw[is.na(raw)] <- 0
@@ -65,8 +74,36 @@ b1 <- unlist(coefs[3:4])
 b1 <- b1[b1!=0]
 
 pred <- as.numeric(x0 %*% b0 * x1 %*% b1)
-summary(model <- lm(y~pred+paste(raw$code)))
+summary(model <- lm(y~pred+paste(raw$brand_redmi)))
 plot.ts(y); lines(predict(model),col=2)
 
+write.clip(cbind(actual=raw$y,predict=predict(model)))
+write.clip(cbind(unlist(coefs[1:2]),unlist(coefs[3:4])))
 
+##################################################
+#Curve
+##################################################
 
+datafile <- select(raw,idx,4:10)
+y <- datafile$idx
+
+model <- lapply(2:(ncol(datafile)-1),function(i){
+  print(i)
+  x <- datafile[,i]+1
+  model1 <- lm(y~x)
+  y1 <- predict(model1)
+  model2 <- lm(y~log(x))
+  y2 <- predict(model2)
+  model3 <- lm(log(y)~x)
+  y3 <- exp(predict(model3))
+  out <- data.frame(x,y1,y2,y3) %>% arrange(x) %>% melt(id=1)
+  ggplot() + geom_line(data=out,aes(x=x,y=value,colour=variable))
+  x <- floor(min(x)):ceiling(max(x))
+  x <- quantile(x,(0:20)/20)
+  y1 <- coef(model1)[1] + coef(model1)[2]*x
+  y2 <- coef(model2)[1] + coef(model2)[2]*log(x)
+  y3 <- exp(coef(model3)[1] + coef(model3)[2]*x)
+  x <- cbind(x,apply(cbind(y1,y2,y3),1,min))
+  
+})
+do.call(cbind,model) %>% write.clip
