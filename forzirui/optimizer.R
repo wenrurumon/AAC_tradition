@@ -42,7 +42,7 @@ curves <- rbind(
   mutate(key=paste(y,x,sep=':')) %>%
   arrange(key)
 
-MODELS <- lapply(seq(1,2.5,0.25),function(threshold){
+MODELS <- lapply(seq(1,2.5,0.1),function(threshold){
   models <- lapply(unique(curves$key),function(keyi){
     curvei <- curves %>% filter(key==keyi)
     funi <- splinefun(curvei$mspd,curvei$mdrive)
@@ -60,7 +60,7 @@ MODELS <- lapply(seq(1,2.5,0.25),function(threshold){
   names(models) <- unique(curves$key)
   models
 })
-names(MODELS) <- paste0('t',seq(1,2.5,0.25)*100)
+names(MODELS) <- paste0('t',seq(1,2.5,0.1)*100)
 
 ################################################
 # 优化参照设计
@@ -129,6 +129,9 @@ maxpaths <- lapply(paths,function(rlts){
 maxpaths.roi <- lapply(maxpaths,function(x){x$maxroi})
 maxpaths.user <- lapply(maxpaths,function(x){x$maxuser})
 
+################################################################################################
+################################################################################################
+
 # Benchmark
 
 models0 <- MODELS[[1]]
@@ -142,14 +145,15 @@ sales0 <- sapply(1:length(b0),function(i){
 user0 <- sapply(1:length(b0),function(i){
   models0.user[[i]](b0[i])
 })
-sum(sales0)/sum(b0)
+sum(sales0)/sum(b0) 
 sum(user0)/sum(b0)
+#确认我们的curve模型跑出来的roi和effectivenss与真实情况基本一致
 
 #Set Target
 
 budget_target <- sum(spt$mean)
-sales_target <- budget_target * (sum(sales0)/sum(b0)*1.3)
-user_target <- budget_target * (sum(user0)/sum(b0)*1.3)
+sales_target <- budget_target * (sum(sales0)/sum(b0)*1.1)
+user_target <- budget_target * (sum(user0)/sum(b0)*1.1)
 
 ################################################
 # 优化路线
@@ -189,7 +193,8 @@ steps0 <- lapply(scenarios,function(scenarioi){
 
 # 选一个scenario做下一步
 
-sel0 <- which.min(sapply(steps0[1:4],nrow))
+sel0 <- which.min(sapply(steps0[1:4],nrow)) #到底选哪个threshold
+# sel0 <- 1
 step0 <- steps0[[sel0]]
 
 #检查还剩多少钱
@@ -198,7 +203,7 @@ budget_left <- budget_target-sum(step0$spd)
 
 #往下放两个更aggresive的模型来投放
 
-sel1 <- min(sel0+2,length(paths))
+sel1 <- min(sel0+2,length(paths)) #怎么算更aggresive的路径
 maxroi1 <- maxpaths.roi[[sel1]]
 maxuser1 <- maxpaths.user[[sel1]]
 
@@ -210,22 +215,22 @@ step1.roi <- maxroi1 %>%
   filter(spd2go>0) %>%
   arrange(desc(roi)) 
 
-# step1.user <- maxuser1 %>%
-#   as.data.frame %>%
-#   merge(step0 %>% select(x,used_spd=spd),by='x',all=T) %>%
-#   mutate(used_spd=ifelse(is.na(used_spd),0,used_spd)) %>%
-#   mutate(spd2go=spd-used_spd) %>%
-#   filter(spd2go>0) %>%
-#   arrange(desc(user)) 
+step1.user <- maxuser1 %>%
+  as.data.frame %>%
+  merge(step0 %>% select(x,used_spd=spd),by='x',all=T) %>%
+  mutate(used_spd=ifelse(is.na(used_spd),0,used_spd)) %>%
+  mutate(spd2go=spd-used_spd) %>%
+  filter(spd2go>0) %>%
+  arrange(desc(user))
 
-step1 <- step1.roi
+step1 <- step1.user #选到底最优roi还是最优user
 step1 <- step1[1:which(cumsum(step1$spd2go)>=budget_left)[1],]
 step1$spd2go[nrow(step1)] <- budget_left-sum(step1$spd2go)+step1$spd2go[nrow(step1)]
 
 #Summarise Strategy
 
 step2 <- spt %>%
-  select(x,mean=mean) %>%
+  select(x,mean=mean,exe=exe) %>%
   merge(
     step0 %>%
       as.data.frame %>%
@@ -240,7 +245,10 @@ step2 <- spt %>%
     all.x=T
   ) %>%
   mutate(spd1=ifelse(is.na(spd1),0,spd1)) %>%
-  mutate(spd=spd0+spd1)
+  mutate(spd=spd0+spd1) %>%
+  mutate(spd/mean,spd/exe)
+
+print(step2)
 
 #Simulation
 
