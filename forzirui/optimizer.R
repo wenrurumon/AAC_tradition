@@ -15,6 +15,8 @@ library(openxlsx)
 setwd('/Users/huzixin/Documents/mcd/moma/result')
 load('modelfiles.rda')
 
+robsroi$roi[6:7] <- robsroi$roi[6:7]/2
+
 #Curves
 
 curves <- raw %>%
@@ -42,7 +44,7 @@ curves <- rbind(
   mutate(key=paste(y,x,sep=':')) %>%
   arrange(key)
 
-MODELS <- lapply(seq(1,2,0.25),function(threshold){
+MODELS <- lapply(seq(1,2,0.0.25),function(threshold){
   models <- lapply(unique(curves$key),function(keyi){
     curvei <- curves %>% filter(key==keyi)
     funi <- splinefun(curvei$mspd,curvei$mdrive)
@@ -171,16 +173,16 @@ getpaths2 <- function(weights,weights2){
 # Targets and Weights
 
 budget_target <- sum(spt$mean) #定budget
-weights <- c(sales=0.5,user=0.5) #定weight
+weights <- c(sales=1,user=0) #定weight
 targets <- budget_target*benchroi*1.2*weights[1]+budget_target*benchueff*1 #定constrain的目标
-weights2 <- c(sales=0,user=1) #定constrain满足后的猛搞的weight
+weights2 <- c(sales=0.5,user=0.5) #定constrain满足后的猛搞的weight
 
 # Dicision
 
 system.time(scenarios <- getpaths2(weights,weights2))
 names(scenarios) <- names(MODELS)
 
-thresmodel <- scenarios$t125 #选一个媒体可以接受的最大变化量
+thresmodel <- scenarios$t150 #选一个媒体可以接受的最大变化量
 scenario <- thresmodel$scenarios
 strategy <- thresmodel$strategies
 
@@ -267,5 +269,6 @@ colSums(rlti[,-1],na.rm=T)
 roisummary %>% 
   group_by(media=key,target) %>%
   summarise(roi=sum(roi*spending)/sum(spending)) %>%
-  dcast(media~target,value.var='roi')
+  dcast(media~target,value.var='roi') %>%
+  arrange(desc(Users))
   
