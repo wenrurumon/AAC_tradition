@@ -42,7 +42,7 @@ curves <- rbind(
   mutate(key=paste(y,x,sep=':')) %>%
   arrange(key)
 
-MODELS <- lapply(seq(1,2.5,0.1),function(threshold){
+MODELS <- lapply(seq(1,2,0.25),function(threshold){
   models <- lapply(unique(curves$key),function(keyi){
     curvei <- curves %>% filter(key==keyi)
     funi <- splinefun(curvei$mspd,curvei$mdrive)
@@ -60,79 +60,13 @@ MODELS <- lapply(seq(1,2.5,0.1),function(threshold){
   names(models) <- unique(curves$key)
   models
 })
-names(MODELS) <- paste0('t',seq(1,2.5,0.1)*100)
-
-################################################
-# 优化参照设计
-################################################
-
-#Pathtable
-
-paths <- lapply(MODELS,function(models){
-  rangei <- seq(0,3,length.out=3001)
-  models.user <- models[grep('User:',names(models))]
-  models.sales <- models[grep('AP Curve:',names(models))]
-  rlts <- do.call(rbind,lapply(1:nrow(spt),function(i){
-    out <- data.table(
-      x=spt$x[i],
-      idx=rangei,
-      user=models.user[[i]](spt$exe[i]*rangei),
-      sales=models.sales[[i]](spt$exe[i]*rangei),
-      spd=spt$exe[i]*rangei
-    ) %>%
-      mutate(usereffect=user/spd,roi=sales/spd)
-  }))
-  rlts
-})
-
-maxpaths <- lapply(paths,function(rlts){
-  maxroi <- rlts %>%
-    merge(
-      rlts %>%
-        group_by(x) %>%
-        summarise(roi=max(roi,na.rm=T))
-    ) %>%
-    arrange(desc(roi))
-  maxuser <- rlts %>%
-    merge(
-      rlts %>%
-        group_by(x) %>%
-        summarise(usereffect=max(usereffect,na.rm=T))
-    ) %>%
-    arrange(desc(usereffect))
-  maxroi <- maxroi %>%
-    merge(
-      maxroi %>%
-        group_by(x) %>%
-        summarise(spd=max(spd)),
-      by=c('x','spd')
-    ) %>%
-    arrange(desc(roi))
-  maxuser <- maxuser %>%
-    merge(
-      maxuser %>%
-        group_by(x) %>%
-        summarise(spd=max(spd)),
-      by=c('x','spd')
-    ) %>%
-    arrange(desc(usereffect))
-  out <- list(maxroi=maxroi,maxuser=maxuser)
-  out
-  # lapply(out,function(x){
-  #   x$cspd <- cumsum(x$spd)
-  #   x$csales <- cumsum(x$sales)
-  #   x$cuser <- cumsum(x$user)
-  #   x
-  # })
-})[-1]
-
-maxpaths.roi <- lapply(maxpaths,function(x){x$maxroi})
-maxpaths.user <- lapply(maxpaths,function(x){x$maxuser})
+names(MODELS) <- paste0('t',seq(1,2,0.25)*100)
+MODELS <- MODELS[-1]
 
 ################################################################################################
 ################################################################################################
 
-# Benchmark
+# Validate Model
 
 models0 <- MODELS[[1]]
 models0.user <- models0[grep('User:',names(models0))]
@@ -145,129 +79,193 @@ sales0 <- sapply(1:length(b0),function(i){
 user0 <- sapply(1:length(b0),function(i){
   models0.user[[i]](b0[i])
 })
-sum(sales0)/sum(b0) 
-sum(user0)/sum(b0)
-#确认我们的curve模型跑出来的roi和effectivenss与真实情况基本一致
+(benchroi <- sum(sales0)/sum(b0))
+(benchueff <- sum(user0)/sum(b0))
 
-#Set Target
+#get paths to optimize specific weights of outcome
 
-budget_target <- sum(spt$mean)
-sales_target <- budget_target * (sum(sales0)/sum(b0)*1.1)
-user_target <- budget_target * (sum(user0)/sum(b0)*1.1)
+getpaths <- function(weights){
+  paths <- lapply(MODELS,function(models){
+    rangei <- seq(0,2.5,length.out=251)
+    models.user <- models[grep('User:',names(models))]
+    models.sales <- models[grep('AP Curve:',names(models))]
+    rlts <- do.call(rbind,lapply(1:nrow(spt),function(i){
+      out <- data.table(
+        x=spt$x[i],
+        idx=rangei,
+        user=models.user[[i]](spt$exe[i]*rangei),
+        sales=models.sales[[i]](spt$exe[i]*rangei),
+        spd=spt$exe[i]*rangei
+      ) %>%
+        mutate(usereffect=user/spd,roi=sales/spd)
+    }))
+    rlts <- rlts %>%
+      mutate(score=weights[1]*sales+weights[2]*user) %>%
+      mutate(scoreeffect=score/spd) %>%
+      arrange(desc(scoreeffect))
+    rlts$sel <- c(0,sapply(2:nrow(rlts),function(i){
+      sum(rlts$spd[1:(i-1)][rlts$x[1:(i-1)]==rlts$x[i]]>rlts$spd[i])
+    }))
+    rlts <- rlts %>% filter(sel==0) %>% select(-sel)
+    test <- data.table(id=1:nrow(rlts),rlts) %>%
+      acast(id~x,value.var='spd',fill=0)
+    rlts$cumspd <- sapply(1:nrow(test),function(i){
+      sum(apply(test[1:i,,drop=F],2,max))
+    })
+    rlts
+  })
+  paths
+}
 
-################################################
-# 优化路线
-################################################
+getpaths2 <- function(weights,weights2){
+  system.time(paths1 <- getpaths(weights))
+  system.time(paths2 <- getpaths(weights2))
+  system.time(
+    rlts2 <- lapply(1:length(paths1),function(i){
+      pathi1 <- paths1[[i]] 
+      pathi2 <- paths2[[i]]
+      pathi1 <- pathi1[1:which(pathi1$cumspd>budget_target*1.1)[1],]
+      pathi2 <- pathi2[1:which(pathi2$cumspd>budget_target*1.1)[1],]
+      scenarios <- lapply(1:nrow(pathi1),function(j){
+        rlts <- rbind(pathi1[1:j,],pathi2)
+        rlts$sel <- c(0,sapply(2:nrow(rlts),function(i){
+          sum(rlts$spd[1:(i-1)][rlts$x[1:(i-1)]==rlts$x[i]]>rlts$spd[i])
+        }))
+        rlts <- rlts %>% 
+          filter(sel==0) %>% 
+          select(x,idx,user,sales,spd)
+        test <- data.table(id=1:nrow(rlts),rlts) %>%
+          acast(id~x,value.var='spd',fill=0)
+        rlts$cumspd <- sapply(1:nrow(test),function(i){
+          sum(apply(test[1:i,,drop=F],2,max))
+        })
+        test <- data.table(id=1:nrow(rlts),rlts) %>%
+          acast(id~x,value.var='sales',fill=0)
+        rlts$cumsales <- sapply(1:nrow(test),function(i){
+          sum(apply(test[1:i,,drop=F],2,max))
+        })
+        test <- data.table(id=1:nrow(rlts),rlts) %>%
+          acast(id~x,value.var='user',fill=0)
+        rlts$cumuser <- sapply(1:nrow(test),function(i){
+          sum(apply(test[1:i,,drop=F],2,max))
+        })
+        rlts <- rlts %>%
+          mutate(
+            step=1:nrow(rlts),
+            strategy=j,
+            score1=cumsales*weights[1]+cumuser*weights[2],
+            score2=cumsales*weights2[1]+cumuser*weights2[2]
+          ) 
+        rlts[1:which(rlts$cumspd>budget_target*1.1)[1],]
+      })
+      scenarios <- do.call(rbind,scenarios)
+      strategies <- scenarios %>%
+        # filter(score1>=targets) %>%
+        select(strategy,step,cumspd,score1,score2)
+      list(scenarios=scenarios,strategies=strategies)
+    })
+  )
+  rlts2
+}
 
-#Scenarios
+# Targets and Weights
 
-scenarios <- lapply(maxpaths,function(pathi){
-  maxroi <- pathi$maxroi
-  maxuser <- pathi$maxuser
-  do.call(rbind,lapply(1:nrow(spt),function(roi_prior){
-    step1 <- maxroi[1:roi_prior,]
-    step2 <- maxuser %>% filter(!x%in%step1$x)
-    out <- data.table(
-      roi_prior=roi_prior,
-      step=1:nrow(spt),
-      rbind(step1,step2)
-    )
-    out$cumspd <- cumsum(out$spd)
-    out$cumuser <- cumsum(out$user)
-    out$cumsales <- cumsum(out$sales)
-    out
-  }))
-})
+budget_target <- sum(spt$mean) #定budget
+weights <- c(sales=0.5,user=0.5) #定weight
+targets <- budget_target*benchroi*1.2*weights[1]+budget_target*benchueff*1 #定constrain的目标
+weights2 <- c(sales=0,user=1) #定constrain满足后的猛搞的weight
 
-# 找到那些scenario可以实现目标
+# Dicision
 
-steps0 <- lapply(scenarios,function(scenarioi){
-  sel <- (scenarioi %>%
-            filter(cumsales>=sales_target,cumuser>=user_target,cumspd<=budget_target) %>%
-            arrange(cumsales))$roi_prior[1]
-  scenarioi %>%
-    filter(roi_prior==sel,step<=min((scenarioi %>%
-                                       filter(roi_prior==sel) %>%
-                                       filter(cumsales>=sales_target,cumuser>=user_target))$step))
-})
+system.time(scenarios <- getpaths2(weights,weights2))
+names(scenarios) <- names(MODELS)
 
-# 选一个scenario做下一步
+thresmodel <- scenarios$t125 #选一个媒体可以接受的最大变化量
+scenario <- thresmodel$scenarios
+strategy <- thresmodel$strategies
 
-sel0 <- which.min(sapply(steps0[1:4],nrow)) #到底选哪个threshold
-# sel0 <- 1
-step0 <- steps0[[sel0]]
+#确保score1达到target，收工
 
-#检查还剩多少钱
+(strategyi <- strategy %>%
+    filter(score1>=targets,cumspd<=budget_target*1) %>%
+    arrange((cumspd)))
 
-budget_left <- budget_target-sum(step0$spd)
+(scenarioi <- scenario %>%
+    filter(strategy==strategyi$strategy[1],step<=strategyi$step[1]) %>%
+    group_by(x) %>%
+    summarise(spd=max(spd),sales=max(sales),user=max(user)) %>%
+    mutate(score1=weights[1]*sales+weights[2]*user,
+           score2=weights2[1]*sales+weights2[2]*user))
 
-#往下放两个更aggresive的模型来投放
+scenarioi %>%
+  melt(id=c('x','spd')) %>%
+  group_by(variable) %>%
+  summarise(value=sum(value),spd=sum(spd)) %>%
+  mutate(roi=value/spd)
 
-sel1 <- min(sel0+2,length(paths)) #怎么算更aggresive的路径
-maxroi1 <- maxpaths.roi[[sel1]]
-maxuser1 <- maxpaths.user[[sel1]]
+#确保score1达到target的情况下，然后猛搞score2
+(strategyi <- strategy %>%
+  filter(score1>=targets,cumspd<=budget_target*1) %>%
+  arrange(desc(score2),(cumspd)))
 
-step1.roi <- maxroi1 %>%
-  as.data.frame %>%
-  merge(step0 %>% select(x,used_spd=spd),by='x',all=T) %>%
-  mutate(used_spd=ifelse(is.na(used_spd),0,used_spd)) %>%
-  mutate(spd2go=spd-used_spd) %>%
-  filter(spd2go>0) %>%
-  arrange(desc(roi)) 
+# strategy %>%
+#   filter(cumspd<=budget_target*1) %>%
+#   arrange(desc(score1),cumspd)
+ 
+(scenarioi <- scenario %>%
+  filter(strategy==strategyi$strategy[1],step<=strategyi$step[1]) %>%
+  group_by(x) %>%
+  summarise(spd=max(spd),sales=max(sales),user=max(user)) %>%
+  mutate(score1=weights[1]*sales+weights[2]*user,
+         score2=weights2[1]*sales+weights2[2]*user))
 
-step1.user <- maxuser1 %>%
-  as.data.frame %>%
-  merge(step0 %>% select(x,used_spd=spd),by='x',all=T) %>%
-  mutate(used_spd=ifelse(is.na(used_spd),0,used_spd)) %>%
-  mutate(spd2go=spd-used_spd) %>%
-  filter(spd2go>0) %>%
-  arrange(desc(user))
+scenarioi %>%
+  melt(id=c('x','spd')) %>%
+  group_by(variable) %>%
+  summarise(value=sum(value),spd=sum(spd)) %>%
+  mutate(roi=value/spd)
 
-step1 <- step1.user #选到底最优roi还是最优user
-step1 <- step1[1:which(cumsum(step1$spd2go)>=budget_left)[1],]
-step1$spd2go[nrow(step1)] <- budget_left-sum(step1$spd2go)+step1$spd2go[nrow(step1)]
+#按照score2最大搞，有多少钱搞多少
 
-#Summarise Strategy
+(strategyi <- strategy %>%
+    filter(score1>=0,cumspd<=budget_target*1.01) %>%
+    arrange(desc(score2),(cumspd)))
 
-step2 <- spt %>%
-  select(x,mean=mean,exe=exe) %>%
+(scenarioi <- scenario %>%
+    filter(strategy==strategyi$strategy[1],step<strategyi$step[1]) %>%
+    group_by(x) %>%
+    summarise(spd=max(spd),sales=max(sales),user=max(user)) %>%
+    mutate(score1=weights[1]*sales+weights[2]*user,
+           score2=weights2[1]*sales+weights2[2]*user))
+
+scenarioi %>%
+  melt(id=c('x','spd')) %>%
+  group_by(variable) %>%
+  summarise(value=sum(value),spd=sum(spd)) %>%
+  mutate(roi=value/spd)
+
+#Outcome
+
+(rlti <- data.table(media=spt$x,previous=spt$mean,exe=spt$exe,sales=sales0/b0,user=user0/b0) %>%
+  mutate(sales=sales*previous,user=user*previous) %>%
   merge(
-    step0 %>%
-      as.data.frame %>%
-      select(x,spd0=spd),
-    all.x=T    
-  ) %>%
-  mutate(spd0=ifelse(is.na(spd0),0,spd0)) %>%
-  merge(
-    step1 %>%
-      as.data.frame %>%
-      select(x,spd1=spd2go),
+    scenarioi %>%
+      select(media=x,scenario=spd,sales2=sales,user2=user),
     all.x=T
   ) %>%
-  mutate(spd1=ifelse(is.na(spd1),0,spd1)) %>%
-  mutate(spd=spd0+spd1) %>%
-  mutate(spd/mean,spd/exe)
+  mutate(spdidx=scenario/exe))
 
-print(step2)
-
-#Simulation
-
-b1 <- step2$spd
-
-models1 <- MODELS[[sel1]]
-models1.user <- models1[grep('User:',names(models1))]
-models1.sales <- models1[grep('AP Curve:',names(models1))]
-
-sales1 <- sapply(1:length(b1),function(i){
-  models1.sales[[i]](b1[i])
-})
-user1 <- sapply(1:length(b1),function(i){
-  models1.user[[i]](b1[i])
-})
-sum(sales1)/sales_target;sum(sales1)/sum(b1)
-sum(user1)/user_target;sum(user1)/sum(b1)
-
-data.table(x=spt$x,previous=b0,scenario=b1) %>%
+rlti %>%
+  select(media,previous,scenario) %>%
   melt(id=1) %>%
   ggplot() + 
-  geom_point(aes(y=x,x=value,colour=variable))
+  geom_point(aes(y=media,x=value,colour=variable))
+
+rlti
+colSums(rlti[,-1],na.rm=T)
+
+roisummary %>% 
+  group_by(media=key,target) %>%
+  summarise(roi=sum(roi*spending)/sum(spending)) %>%
+  dcast(media~target,value.var='roi')
+  
