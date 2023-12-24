@@ -171,28 +171,36 @@ getpaths2 <- function(weights,weights2){
   rlts2
 }
 
-# Targets and Weights
+# Targets and Weights (Input)
 
 budget_target <- sum(spt$mean) #定budget
-weights1 <- c(sales=1,user=0) #优化方向1
-weights2 <- c(sales=0,user=1) #优化方向2
 sales_target <- budget_target*benchroi*1.2
 user_target <- budget_target*benchueff*1.1
 
 # Dicision
 
-system.time(scenarios <- getpaths2(weights1,weights2))
-names(scenarios) <- names(MODELS)
+# weights1 <- c(sales=1,user=0) #优化方向1
+# weights2 <- c(sales=0,user=1) #优化方向2
+# system.time(scenarios <- getpaths2(weights1,weights2))
+# names(scenarios) <- names(MODELS)
+# save(scenarios,file='scenarios_model1.rda')
+load('scenarios_model1.rda')
 
 thresmodel <- scenarios$t125 #选一个媒体可以接受的最大变化量
 scenario <- thresmodel$scenarios
 strategy <- thresmodel$strategies
 
-#搜索所有满足constrain的策略,找某一个kpi最大最大
+#搜索所有满足constrain的策略,找某一个kpi最大最大 (Input)
 
 strategyi <- strategy %>%
   filter(cumsales>=sales_target,cumuser>=user_target,cumspd<=budget_target) %>%
-  arrange(desc(cumsales*cumuser/cumspd^2/benchroi/benchueff))
+  arrange(desc(cumsales*cumuser/cumspd^2/benchroi/benchueff)) 
+  # arrange(desc(cumuser/cumspd)) #满足条件后user最大
+  # arrange(desc(cumsales/cumspd)) #满足条件后roi最大
+
+strategyi <- strategy %>%
+  filter(cumsales>=sales_target,cumuser>=user_target) %>%
+  arrange(cumspd)
 
 (scenarioi <- scenario %>%
     filter(strategy==strategyi$strategy[1],step<=strategyi$step[1]) %>%
@@ -224,10 +232,3 @@ rlti %>%
   melt(id=1) %>%
   ggplot() + 
   geom_point(aes(y=media,x=value,colour=variable))
-
-roisummary %>% 
-  group_by(media=key,target) %>%
-  summarise(roi=sum(roi*spending)/sum(spending)) %>%
-  dcast(media~target,value.var='roi') %>%
-  arrange(desc(Sales))
-  
