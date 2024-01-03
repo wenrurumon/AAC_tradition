@@ -367,6 +367,10 @@ spt %>%
   labs(x='Spending (MRMB)',y='',colour='',shape='') +
   theme(text=element_text(size=15))
 
+#Growth
+
+out <- unlist(pathi %>% filter(`Media Type`=='Total') %>% select(-1))/
+  c(benchroi$spd[1],benchroi[c(2,3,1),]$drive,benchroi[c(2,3,1),]$roi)
 
 
 
