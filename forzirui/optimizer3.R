@@ -5,236 +5,368 @@ library(reshape2)
 library(data.table)
 library(ggplot2)
 library(openxlsx)
-library(shiny)
-library(DT)
 
 ################################################
 # 数据库
 ################################################
 
+#Base Data
+
 setwd('/Users/huzixin/Documents/mcd/moma/version1231')
 load('curves.rda')
 load('roisummary.rda')
+
+# #Curves
+# 
+# curves <- curves %>% mutate(key=paste(y,x,sep=':'))
+# tabs <- unique(curves$key)
+# 
+# #Models for curve
+# 
+# models <- lapply(tabs,function(tab){
+#   thres <- 1.5 #ROI Threshold
+#   curvei <- filter(curves,key==tab)
+#   curvei <- curvei %>%
+#     mutate(roi=ifelse(spdidx>0.1,roi,(curvei %>% filter(spdidx>0.1))$roi[1])) %>%
+#     mutate(drive=roi*spd)
+#   curvei <- curvei %>%
+#     mutate(drive=ifelse(spdidx>thres,max((curvei %>% filter(spdidx<thres))$drive),drive)) %>%
+#     mutate(roi=drive/spd)
+#   funi <- splinefun(curvei$spd,curvei$drive)
+#   funi
+# })
+# names(models) <- tabs
+# 
+# #Validate Curves
+# 
+# benchroi <- do.call(rbind,lapply(1:nrow(spt),function(i){
+#   tab <- spt$x[i]
+#   out <- sapply(models[grep(paste0(':',tab),names(models))],function(fun){
+#     fun(spt$exe[i])
+#   })
+#   out <- data.table(x=tab,y=names(out),drive=out,spd=spt$exe[i]) %>%
+#     mutate(y=substr(y,1,regexpr(':',y)-1))
+# })) %>%
+#   group_by(y) %>%
+#   summarise(drive=sum(drive),spd=sum(spd)) %>%
+#   mutate(roi=drive/spd) %>%
+#   mutate(spd=sum(spt$mean)) %>%
+#   mutate(drive=roi*spd)
+# 
+# #Curves
+# 
+# curves <- do.call(rbind,lapply(1:nrow(spt),function(i){
+#   tab <- spt$x[i]
+#   spdi <- (1:150)/100*spt$exe[i]
+#   out <- lapply(grep(paste0(':',tab),names(models)),function(j){
+#     data.table(x=tab,y=names(models)[j],spd=spdi,drive=models[[j]](spdi)) %>%
+#       mutate(y=substr(y,1,regexpr(':',y)-1)) %>%
+#       mutate(roi=drive/spd)
+#   })
+#   do.call(rbind,out)
+# })) %>%
+#   melt(id=1:3) %>%
+#   dcast(x+spd~variable+y,value.var='value')
+# 
+# #Adjust ROI
+# 
+# curves$roi_Sales[curves$x=='Digital Display - Weibo OP'] <-
+#   ifelse(curves$roi_Sales[curves$x=='Digital Display - Weibo OP']>4.47841234,
+#          4.47841234,curves$roi_Sales[curves$x=='Digital Display - Weibo OP'])
+# 
+# curves$drive_Sales[curves$x=='Digital Display - Weibo OP'] <-
+#   curves$spd[curves$x=='Digital Display - Weibo OP'] *
+#   curves$roi_Sales[curves$x=='Digital Display - Weibo OP']
+# 
+# #Paths.maxsales
+# 
+# paths.maxsales <- curves %>% arrange(desc(roi_Sales))
+# system.time(
+#   paths.maxsales <- unique(lapply(1:nrow(paths.maxsales),function(i){
+#     pathi <- paths.maxsales[1:i,]
+#     pathi %>%
+#       group_by(x) %>%
+#       summarise(spd=max(spd)) %>%
+#       merge(pathi)
+#   }))
+# )
+# paths.maxsales <- do.call(c,list(list(paths.maxsales[[1]][-1,,drop=F]),paths.maxsales))
+# paths.maxsales <-lapply(1:length(paths.maxsales),function(i){
+#   data.table(step=i,paths.maxsales[[i]]) %>%
+#     mutate(strategy='Sales') %>%
+#     arrange(desc(roi_Sales))
+# })
+# strategy.maxsales <- do.call(rbind,paths.maxsales) %>%
+#   group_by(step,strategy) %>%
+#   summarise(spd=sum(spd),sales=sum(drive_Sales),reach=sum(drive_Reach),user=sum(drive_User)) %>%
+#   mutate(dsales=sales/spd,dreach=reach/spd,duser=user/spd)
+# 
+# #Paths.maxuser
+# 
+# paths.maxuser <- curves %>% arrange(desc(roi_User))
+# system.time(
+#   paths.maxuser <- unique(lapply(1:nrow(paths.maxuser),function(i){
+#     pathi <- paths.maxuser[1:i,]
+#     pathi %>%
+#       group_by(x) %>%
+#       summarise(spd=max(spd)) %>%
+#       merge(pathi)
+#   }))
+# )
+# paths.maxuser <- do.call(c,list(list(paths.maxuser[[1]][-1,,drop=F]),paths.maxuser))
+# paths.maxuser <- lapply(1:length(paths.maxuser),function(i){
+#   data.table(step=i,paths.maxuser[[i]]) %>%
+#     mutate(strategy='User') %>%
+#     arrange(desc(roi_User))
+# })
+# strategy.maxuser <- do.call(rbind,paths.maxuser) %>%
+#   group_by(step,strategy) %>%
+#   summarise(spd=sum(spd),sales=sum(drive_Sales),reach=sum(drive_Reach),user=sum(drive_User)) %>%
+#   mutate(dsales=sales/spd,dreach=reach/spd,duser=user/spd)
+# 
+# #Paths.maxreach
+# 
+# paths.maxreach <- curves %>% arrange(desc(roi_Reach))
+# system.time(
+#   paths.maxreach <- unique(lapply(1:nrow(paths.maxreach),function(i){
+#     pathi <- paths.maxreach[1:i,]
+#     pathi %>%
+#       group_by(x) %>%
+#       summarise(spd=max(spd)) %>%
+#       merge(pathi)
+#   }))
+# )
+# paths.maxreach <- do.call(c,list(list(paths.maxreach[[1]][-1,,drop=F]),paths.maxreach))
+# paths.maxreach <- lapply(1:length(paths.maxreach),function(i){
+#   data.table(step=i,paths.maxreach[[i]]) %>%
+#     mutate(strategy='Reach') %>%
+#     arrange(desc(roi_Reach))
+# })
+# strategy.maxreach <- do.call(rbind,paths.maxreach) %>%
+#   group_by(step,strategy) %>%
+#   summarise(spd=sum(spd),sales=sum(drive_Sales),reach=sum(drive_Reach),user=sum(drive_User)) %>%
+#   mutate(dsales=sales/spd,dreach=reach/spd,duser=user/spd)
+# 
+# save(benchroi,spt,strategy.maxreach,strategy.maxuser,strategy.maxsales,file='benchmarks.rda')
 load('benchmarks.rda')
-load('strategy3.rda')
 
 ################################################
-# 前端
+# 算法
 ################################################
 
-ui <- fluidPage(
-  sidebarLayout(
-    sidebarPanel(
-      # numericInput("budget_target","Budget Target:",value = 7644355,min = 0,max = Inf),
-      # numericInput("sales_uplift","Sales Effectiveness Target:",value = 1,min = 0,max = Inf),
-      # numericInput("user_uplift","User Effectiveness Target:",value = 1,min = 0,max = Inf),
-      # numericInput("reach_uplift","Reach Effectiveness Target:",value = 1,min = 0,max = Inf),
-      sliderInput("budget_target","Budget Target:",value = 7644355,min = 4000000,max = 10000000),
-      sliderInput("sales_uplift","Sales Effectiveness Target:",value = 1,min = 0,max = 2,step=0.1),
-      sliderInput("user_uplift","User Effectiveness Target:",value = 1,min = 0,max = 2,step=0.1),
-      sliderInput("reach_uplift","Reach Effectiveness Target:",value = 1,min = 0,max = 2,step=0.1),
-      radioButtons("min_budget","Minimize Budget under Constrains",choices = c("Yes","No")),
-      conditionalPanel(
-        condition = "input.min_budget == 'No'",
-        sliderInput("sales_weight","Objective Weights on Sales:",value = 0.5,min = 0,max = 1,step=0.25),
-        sliderInput("user_weight","Objective Weights on User:",value = 0.25,min = 0,max = 1,step=0.25),
-        sliderInput("reach_weight","Objective Weights on Reach:",value = 0.25,min = 0,max = 1,step=0.25)
-      )
-    ),
-    mainPanel(
-      hr(),
-      tags$h3("Simulation Summary"),
-      hr(),
-      plotOutput("output3"),
-      hr(),
-      tags$h3("Simulation Decomp"),
-      hr(),
-      DT::dataTableOutput("output1"),
-      hr(),
-      plotOutput("output2"),
-      hr(),
-    )
-  ),
-)
+# #Input to generate scenarios
+# 
+# budget_target <- sum(spt$mean) * 1.5
+# 
+# #New Paths to Max Sales
+# 
+# temppath <- curves %>% arrange(desc(roi_Sales))
+# rlts <- list()
+# for (i in 1:nrow(temppath)) {
+#   pathi <- temppath[1:i,]
+#   pathi <- pathi %>%
+#     group_by(x) %>%
+#     summarise(spd = max(spd)) %>%
+#     merge(pathi)
+#   if (sum(pathi$spd) > budget_target) {
+#     break  
+#   } else {
+#     rlts[[i]] <- pathi
+#   }
+# }
+# rlts <- unique(rlts)
+# rlts <- do.call(c,list(list(rlts[[1]][-1,,drop=F]),rlts))
+# paths.maxsales <- lapply(1:length(rlts),function(i){
+#   data.table(step=i,rlts[[i]]) %>%
+#     mutate(strategy='Sales') %>%
+#     arrange(desc(roi_Sales))
+# })
+# strategy.maxsales <- do.call(rbind,paths.maxsales) %>%
+#   group_by(step,strategy) %>%
+#   summarise(spd=sum(spd),sales=sum(drive_Sales),reach=sum(drive_Reach),user=sum(drive_User)) %>%
+#   mutate(reach=ifelse(reach>100,100,reach)) %>%
+#   mutate(dsales=sales/spd,dreach=reach/spd,duser=user/spd) 
+# 
+# #New Paths to Max User
+# 
+# temppath <- curves %>% arrange(desc(roi_User))
+# rlts <- list()
+# for (i in 1:nrow(temppath)) {
+#   pathi <- temppath[1:i,]
+#   pathi <- pathi %>%
+#     group_by(x) %>%
+#     summarise(spd = max(spd)) %>%
+#     merge(pathi)
+#   if (sum(pathi$spd) > budget_target) {
+#     break  
+#   } else {
+#     rlts[[i]] <- pathi
+#   }
+# }
+# rlts <- unique(rlts)
+# rlts <- do.call(c,list(list(rlts[[1]][-1,,drop=F]),rlts))
+# paths.maxuser <- lapply(1:length(rlts),function(i){
+#   data.table(step=i,rlts[[i]]) %>%
+#     mutate(strategy='User') %>%
+#     arrange(desc(roi_User))
+# })
+# strategy.maxuser <- do.call(rbind,paths.maxuser) %>%
+#   group_by(step,strategy) %>%
+#   summarise(spd=sum(spd),sales=sum(drive_Sales),reach=sum(drive_Reach),user=sum(drive_User)) %>%
+#   mutate(reach=ifelse(reach>100,100,reach)) %>%
+#   mutate(dsales=sales/spd,dreach=reach/spd,duser=user/spd) 
+# 
+# #New Paths to Max Reach
+# 
+# temppath <- curves %>% arrange(desc(roi_Reach))
+# rlts <- list()
+# for (i in 1:nrow(temppath)) {
+#   pathi <- temppath[1:i,]
+#   pathi <- pathi %>%
+#     group_by(x) %>%
+#     summarise(spd = max(spd)) %>%
+#     merge(pathi)
+#   if (sum(pathi$spd) > budget_target) {
+#     break  
+#   } else {
+#     rlts[[i]] <- pathi
+#   }
+# }
+# rlts <- unique(rlts)
+# rlts <- do.call(c,list(list(rlts[[1]][-1,,drop=F]),rlts))
+# paths.maxreach <- lapply(1:length(rlts),function(i){
+#   data.table(step=i,rlts[[i]]) %>%
+#     mutate(strategy='Reach') %>%
+#     arrange(desc(roi_Reach))
+# })
+# strategy.maxreach <- do.call(rbind,paths.maxreach) %>%
+#   group_by(step,strategy) %>%
+#   summarise(spd=sum(spd),sales=sum(drive_Sales),reach=sum(drive_Reach),user=sum(drive_User)) %>%
+#   mutate(reach=ifelse(reach>100,100,reach)) %>%
+#   mutate(dsales=sales/spd,dreach=reach/spd,duser=user/spd) 
+# 
+# #Path3
+# 
+# strategys <- list(reach=strategy.maxreach,sales=strategy.maxsales,user=strategy.maxuser)
+# paths <- list(reach=paths.maxreach,sales=paths.maxsales,user=paths.maxuser)
+# paths <- paths[rank(sapply(strategys,nrow))]
+# strategys <- strategys[rank(sapply(strategys,nrow))]
+# 
+# system.time(
+#   path3 <- do.call(c,lapply(1:length(paths[[1]]),function(i){
+#     print(paste(i,Sys.time()))
+#     do.call(c,lapply(1:length(paths[[2]]),function(j){
+#       path0 <- rbind(paths[[1]][[i]],paths[[2]][[j]])
+#       lapply(1:length(paths[[3]]),function(k){
+#         cbind(code=paste(i,j,k,sep='-'),rbind(path0,paths[[3]][[k]]))
+#       })
+#     }))
+#   }))
+# )
+# path3 <- do.call(rbind,path3) 
+# path3 <- path3 %>%
+#   select(-step,-strategy) %>%
+#   unique() %>%
+#   merge(
+#     path3 %>%
+#       filter(!is.na(x)) %>%
+#       group_by(x,code) %>%
+#       summarise(spd=max(spd))
+#   )
+# 
+# strategy3 <- path3 %>%
+#   group_by(code) %>%
+#   summarise(spd=sum(spd),reach=sum(drive_Reach),sales=sum(drive_Sales),user=sum(drive_User)) %>%
+#   mutate(reach=ifelse(reach>100,100,reach)) %>%
+#   mutate(dreach=reach/spd,dsales=sales/spd,duser=user/spd) %>%
+#   mutate(score_reach=reach/unlist(max.benchmark)[4],
+#          score_sales=sales/unlist(max.benchmark)[5],
+#          score_user=user/unlist(max.benchmark)[6]) 
+# 
+# save(path3,strategy3,file='strategy3.rda')
+system.time(load('strategy3.rda'))
 
-################################################
-# 服务端
-################################################
+################################################################################################################
 
-server <- function(input,output,session){
-  
-  
-  max.benchmark <- reactive({
-    
-    req(input$budget_target)
-    
-    budget_target <- input$budget_target
-    
-    data.table(
-      max.reachroi = (strategy.maxreach %>% filter(spd<=budget_target) %>% arrange(desc(spd)))$dreach[1],
-      max.salesroi = (strategy.maxsales %>% filter(spd<=budget_target) %>% arrange(desc(spd)))$dsales[1],
-      max.userroi = (strategy.maxuser %>% filter(spd<=budget_target) %>% arrange(desc(spd)))$duser[1]
-    ) %>%
-      mutate(
-        max.reach = max.reachroi * budget_target,
-        max.sales = max.salesroi * budget_target,
-        max.user = max.userroi * budget_target
-      ) %>%
-      mutate(max.reach = ifelse(max.reach>100,100,max.reach))
-    
-  })
-  
-  strategy1 <- reactive({
-    
-    req(input$budget_target)
-    req(input$sales_uplift)
-    req(input$user_uplift)
-    req(input$reach_uplift)
+#Inputs for 2-step optimization
 
-    budget_target <- input$budget_target
-    targets.uplift <- c(reach=input$reach_uplift,
-                       sales=input$sales_uplift,
-                       user=input$user_uplift)
-    
-    targets <- budget_target*benchroi$roi*targets.uplift
-    
-    strategyi <- strategy3 %>%
+budget_target <- sum(spt$mean) #input
+targets.uplift <- c(reach=1.0,sales=1.1,user=1.1) #input
+weights <- c(reach=0.1,sales=0.8,user=0.1) #input
 
-      filter(spd<=budget_target,reach>=targets[1],sales>=targets[2],user>=targets[3]) %>%
-      arrange(spd)
-    
-    pathi <- path3 %>% filter(code==strategyi$code[1]) %>% arrange(desc(spd))
-    
-    rbind(
-      pathi %>%
-        summarise(x='Total',spd=sum(spd),
-                  drive_Reach=sum(drive_Reach),drive_Sales=sum(drive_Sales),drive_User=sum(drive_User)) %>%
-        mutate(roi_Reach=drive_Reach/spd,roi_Sales=drive_Sales/spd,roi_User=drive_User/spd),
-      pathi %>% select(-code)
-    ) %>%
-      select(`Media Type`=x,Spending=spd,
-             Sales=drive_Sales,User=drive_User,Reach=drive_Reach,
-             roi_Sales,roi_User,roi_Reach)
-    
-  })
-  
-  strategy2 <- reactive({
-    
-    req(input$budget_target)
-    req(input$sales_uplift)
-    req(input$user_uplift)
-    req(input$reach_uplift)
-    req(input$sales_weight)
-    req(input$user_weight)
-    req(input$reach_weight)
-    
-    budget_target <- input$budget_target
-    
-    max.benchmark <- max.benchmark()
-    
-    targets.uplift <- c(reach=input$reach_uplift,
-                       sales=input$sales_uplift,
-                       user=input$user_uplift)
-    weights <- c(reach=input$reach_weight,
-                 sales=input$sales_weight,
-                 user=input$user_weight)
-    
-    targets <- budget_target*benchroi$roi*targets.uplift
-    targets.prop <- targets/unlist(max.benchmark)[4:6]
-    
-    strategyi <- strategy3 %>%
-      filter(spd<=budget_target,reach>=targets[1],sales>=targets[2],user>=targets[3]) %>%
-      mutate(score_reach=reach/unlist(max.benchmark)[4],
-             score_sales=sales/unlist(max.benchmark)[5],
-             score_user=user/unlist(max.benchmark)[6]) %>%
-      mutate(score=score_reach*weights[1]+score_sales*weights[2]+score_user*weights[3]) %>%
-      arrange(desc(score))
-    
-    pathi <- path3 %>% filter(code==strategyi$code[1]) %>% arrange(desc(spd))
-    rbind(
-      pathi %>%
-        summarise(x='Total',spd=sum(spd),
-                  drive_Reach=sum(drive_Reach),drive_Sales=sum(drive_Sales),drive_User=sum(drive_User)) %>%
-        mutate(roi_Reach=drive_Reach/spd,roi_Sales=drive_Sales/spd,roi_User=drive_User/spd),
-      pathi %>% select(-code)
-    ) %>%
-      select(`Media Type`=x,Spending=spd,
-             Sales=drive_Sales,User=drive_User,Reach=drive_Reach,
-             roi_Sales,roi_User,roi_Reach)
-    
-  })
-  
-  output$output1 <- renderDataTable({
-    req(input$min_budget)
-    
-    if(input$min_budget=='Yes'){
-      output1 <- strategy1() %>% as.data.frame
-    } else {
-      output1 <- strategy2() %>% as.data.frame
-    }
-    
-    out <- data.table(
-      output1[,1,drop=F],
-      apply(output1[,2:6],2,function(x){prettyNum(round(x,2),big.mark=',')}),
-      apply(output1[,7:8],2,function(x){format(signif(x,4),scientific=T)})
-    )
-    
-    datatable(out,options = list(pageLength = nrow(iris), paging = FALSE, dom='t'))
-    
-  })
-  
-  output$output2 <- renderPlot({
-    
-    req(input$min_budget)
-    
-    if(input$min_budget=='Yes'){
-      pathi <- strategy1() %>% as.data.frame
-    } else {
-      pathi <- strategy2() %>% as.data.frame
-    }
-    
-    spt %>%
-      select(x,average_spending=mean,executive_spending=exe) %>%
-      merge(pathi %>% select(x=1,suggested_spending=Spending) %>% filter(x!='Total'),all=T) %>%
-      melt() %>%
-      ggplot() + 
-      geom_point(aes(x=value/1000000,y=x,colour=variable,shape=variable),size=3) +
-      theme_bw() + 
-      labs(x='Spending (MRMB)',y='',colour='',shape='') +
-      theme(text=element_text(size=15))
-    
-  })
-  
-  output$output3 <- renderPlot({
-    
-    req(input$min_budget)
-    
-    if(input$min_budget=='Yes'){
-      pathi <- strategy1() %>% as.data.frame
-    } else {
-      pathi <- strategy2() %>% as.data.frame
-    }
-    
-    out <- unlist(pathi %>% filter(`Media Type`=='Total') %>% select(-1))/
-      c(benchroi$spd[1],benchroi[c(2,3,1),]$drive,benchroi[c(2,3,1),]$roi)
-    
-    out <- round(out*100-100,0)
-    
-    data.table(Attribute=names(out),Change=out) %>%
-      mutate(Attribute=factor(Attribute,rev(names(out)))) %>%
-      mutate(class=c(1,2,3,4,2,3,4)) %>%
-      ggplot() +
-      geom_col(aes(y=Attribute,x=Change,fill=paste(class)),colour='black') +
-      geom_label(aes(y=Attribute,x=Change,
-                     label=ifelse(Change>0,paste0('+',Change,'%'),paste0(Change,'%'))),
-                 size=5) +
-      geom_vline(xintercept=0,linetype='dashed',color='red') +
-      theme_bw() + 
-      theme(text=element_text(size=15,face='bold'),legend.position='none',axis.text.x=element_text(size=0)) +
-      labs(x='',y='')
-    
-  })
-  
-}
+#Calculate Max Sales/User/Reach
 
-shinyApp(ui, server,options = list(host = "0.0.0.0",port = 2222))
+max.benchmark <- data.table(
+  max.reachroi = (strategy.maxreach %>% filter(spd<=budget_target) %>% arrange(desc(spd)))$dreach[1],
+  max.salesroi = (strategy.maxsales %>% filter(spd<=budget_target) %>% arrange(desc(spd)))$dsales[1],
+  max.userroi = (strategy.maxuser %>% filter(spd<=budget_target) %>% arrange(desc(spd)))$duser[1]
+) %>%
+  mutate(
+    max.reach = max.reachroi * budget_target,
+    max.sales = max.salesroi * budget_target,
+    max.user = max.userroi * budget_target
+  ) %>%
+  mutate(max.reach = ifelse(max.reach>100,100,max.reach))
+
+#Set Target
+
+targets <- budget_target*benchroi$roi*targets.uplift
+targets.prop <- targets/unlist(max.benchmark)[4:6]
+
+#Strategy 1
+
+strategyi <- strategy3 %>%
+  filter(spd<=budget_target,reach>=targets[1],sales>=targets[2],user>=targets[3]) %>%
+  arrange(spd)
+
+pathi <- path3 %>% filter(code==strategyi$code[1]) %>% arrange(desc(spd))
+
+(pathi <- rbind(
+  pathi %>%
+    summarise(x='Total',spd=sum(spd),
+              drive_Reach=sum(drive_Reach),drive_Sales=sum(drive_Sales),drive_User=sum(drive_User)) %>%
+    mutate(roi_Reach=drive_Reach/spd,roi_Sales=drive_Sales/spd,roi_User=drive_User/spd),
+  pathi %>% select(-code)
+) %>%
+  select(`Media Type`=x,Spending=spd,
+         Sales=drive_Sales,User=drive_User,Reach=drive_Reach,
+         roi_Sales,roi_User,roi_Reach))
+
+#Strategy 2
+
+strategyi <- strategy3 %>%
+  filter(spd<=budget_target,reach>=targets[1],sales>=targets[2],user>=targets[3]) %>%
+  mutate(score_reach=reach/unlist(max.benchmark)[4],
+         score_sales=sales/unlist(max.benchmark)[5],
+         score_user=user/unlist(max.benchmark)[6]) %>%
+  mutate(score=score_reach*weights[1]+score_sales*weights[2]+score_user*weights[3]) %>%
+  arrange(desc(score))
+
+pathi <- path3 %>% filter(code==strategyi$code[1]) %>% arrange(desc(spd))
+
+(pathi <- rbind(
+  pathi %>%
+    summarise(x='Total',spd=sum(spd),
+              drive_Reach=sum(drive_Reach),drive_Sales=sum(drive_Sales),drive_User=sum(drive_User)) %>%
+    mutate(roi_Reach=drive_Reach/spd,roi_Sales=drive_Sales/spd,roi_User=drive_User/spd),
+  pathi %>% select(-code)
+) %>%
+  select(`Media Type`=x,Spending=spd,
+         Sales=drive_Sales,User=drive_User,Reach=drive_Reach,
+         roi_Sales,roi_User,roi_Reach))
+
+#plot
+
+spt %>%
+  select(x,average_spending=mean,executive_spending=exe) %>%
+  merge(pathi %>% select(x=1,suggested_spending=Spending) %>% filter(x!='Total'),all=T) %>%
+  melt() %>%
+  ggplot() + 
+  geom_point(aes(x=value/1000000,y=x,colour=variable,shape=variable),size=3) +
+  theme_bw() + 
+  labs(x='Spending (MRMB)',y='',colour='',shape='') +
+  theme(text=element_text(size=15))
+
+
+
+
