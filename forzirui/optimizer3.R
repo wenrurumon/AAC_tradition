@@ -176,7 +176,7 @@ server <- function(input,output,session){
     out <- data.table(
       output1[,1,drop=F],
       apply(output1[,2:6],2,function(x){prettyNum(round(x,2),big.mark=',')}),
-      apply(output1[,7:8],2,function(x){format(x,scientific=T)})
+      apply(output1[,7:8],2,function(x){format(signif(x,4),scientific=T)})
     )
     
     datatable(out,options = list(pageLength = nrow(iris), paging = FALSE, dom='t'))
