@@ -218,7 +218,7 @@ server <- function(input,output,session){
     out <- unlist(pathi %>% filter(`Media Type`=='Total') %>% select(-1))/
       c(benchroi$spd[1],benchroi[c(2,3,1),]$drive,benchroi[c(2,3,1),]$roi)
     
-    out <- round(out,2)
+    out <- round(out*100-100,0)
     
     data.table(Attribute=names(out),Change=out) %>%
       mutate(Attribute=factor(Attribute,rev(names(out)))) %>%
@@ -226,8 +226,9 @@ server <- function(input,output,session){
       ggplot() +
       geom_col(aes(y=Attribute,x=Change,fill=paste(class)),colour='black') +
       geom_label(aes(y=Attribute,x=Change,
-                     label=ifelse(Change>1,paste0('+',round(Change,2)*100-100,'%'),paste0(round(Change,2)*100-100,'%'))),
+                     label=ifelse(Change>0,paste0('+',Change,'%'),paste0(Change,'%'))),
                  size=5) +
+      geom_vline(xintercept=0,linetype='dashed',color='red') +
       theme_bw() + 
       theme(text=element_text(size=15,face='bold'),legend.position='none',axis.text.x=element_text(size=0)) +
       labs(x='',y='')
