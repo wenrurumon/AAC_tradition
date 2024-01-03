@@ -36,9 +36,9 @@ ui <- fluidPage(
       radioButtons("min_budget","Minimize Budget under Constrains",choices = c("Yes","No")),
       conditionalPanel(
         condition = "input.min_budget == 'No'",
-        sliderInput("sales_weight","Objective Weights on Sales:",value = 0.6,min = 0,max = 1),
-        sliderInput("user_weight","Objective Weights on User:",value = 0.2,min = 0,max = 1),
-        sliderInput("reach_weight","Objective Weights on Reach:",value = 0.2,min = 0,max = 1)
+        sliderInput("sales_weight","Objective Weights on Sales:",value = 0.5,min = 0,max = 1,step=0.25),
+        sliderInput("user_weight","Objective Weights on User:",value = 0.25,min = 0,max = 1,step=0.25),
+        sliderInput("reach_weight","Objective Weights on Reach:",value = 0.25,min = 0,max = 1,step=0.25)
       )
     ),
     mainPanel(
